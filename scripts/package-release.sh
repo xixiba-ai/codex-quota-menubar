@@ -81,6 +81,10 @@ assert info['CFBundleIdentifier'] == 'com.example.CodexQuotaMenuBar'
 assert info['CFBundleShortVersionString'] == sys.argv[2]
 assert info['CFBundleVersion'] == sys.argv[3]
 assert info['LSMinimumSystemVersion'] == '13.0'
+for language in ('en', 'zh-Hans'):
+    translation = app / 'Contents/Resources' / f'{language}.lproj/Localizable.strings'
+    assert translation.is_file(), f'Missing localization: {language}'
+    assert (root / ('INSTALL.en.md' if language == 'en' else 'INSTALL.md')).is_file()
 patterns = [
     rb'/(?:Users|home)/[^\s/]+/',
     rb'-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----',

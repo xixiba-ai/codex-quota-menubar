@@ -18,31 +18,37 @@ final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
     let autoRefreshScheduler = AutoRefreshScheduler()
     let resetForecastStore = ResetForecastStore()
     private var statusItem: NSStatusItem?
+    private var languageObservation: AnyCancellable?
     private var stateObservation: AnyCancellable?
     private var autoRefreshObservation: AnyCancellable?
     private var resetForecastObservation: AnyCancellable?
     private var activeQuotaRefreshObservation: AnyCancellable?
     private var lastObservedScheduledRefresh: Date?
-    private let shortTermItem = NSMenuItem(title: "正在读取额度…", action: nil, keyEquivalent: "")
+    private let shortTermItem = NSMenuItem(title: L10n.tr("正在读取额度…"), action: nil, keyEquivalent: "")
     private let longTermItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     private let sourceItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
-    private let resetForecastItem = NSMenuItem(title: "48 小时重置概率：未启用", action: nil, keyEquivalent: "")
-    private let resetForecastSourceItem = NSMenuItem(title: "第三方估算 · willcodexquotareset.com", action: nil, keyEquivalent: "")
-    private let resetForecastToggleItem = NSMenuItem(title: "开启重置概率预测", action: nil, keyEquivalent: "")
-    private let autoRefreshToggleItem = NSMenuItem(title: "自动刷新额度", action: nil, keyEquivalent: "")
-    private let autoRefreshScheduleItem = NSMenuItem(title: "修改触发时间…", action: nil, keyEquivalent: "")
-    private let autoRefreshTimesItem = NSMenuItem(title: "触发时间：—", action: nil, keyEquivalent: "")
-    private let autoRefreshStatusItem = NSMenuItem(title: "当前状态：关闭", action: nil, keyEquivalent: "")
-    private let lastAutoRefreshItem = NSMenuItem(title: "最近一次触发：—", action: nil, keyEquivalent: "")
-    private let nextAutoRefreshItem = NSMenuItem(title: "下一次计划触发：—", action: nil, keyEquivalent: "")
+    private let resetForecastItem = NSMenuItem(title: L10n.tr("48 小时重置概率：未启用"), action: nil, keyEquivalent: "")
+    private let resetForecastSourceItem = NSMenuItem(title: L10n.tr("第三方估算 · willcodexquotareset.com"), action: nil, keyEquivalent: "")
+    private let resetForecastToggleItem = NSMenuItem(title: L10n.tr("开启重置概率预测"), action: nil, keyEquivalent: "")
+    private let autoRefreshToggleItem = NSMenuItem(title: L10n.tr("自动刷新额度"), action: nil, keyEquivalent: "")
+    private let autoRefreshScheduleItem = NSMenuItem(title: L10n.tr("修改触发时间…"), action: nil, keyEquivalent: "")
+    private let autoRefreshTimesItem = NSMenuItem(title: L10n.tr("触发时间：—"), action: nil, keyEquivalent: "")
+    private let autoRefreshStatusItem = NSMenuItem(title: L10n.tr("当前状态：关闭"), action: nil, keyEquivalent: "")
+    private let lastAutoRefreshItem = NSMenuItem(title: L10n.tr("最近一次触发：—"), action: nil, keyEquivalent: "")
+    private let nextAutoRefreshItem = NSMenuItem(title: L10n.tr("下一次计划触发：—"), action: nil, keyEquivalent: "")
     private var sessionPanel: NSPanel?
     private var helpWindow: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        // Unit tests must not launch the real CLI or restore scheduled activity.
+        guard NSClassFromString("XCTestCase") == nil else { return }
         configureStatusItem()
+        languageObservation = AppLanguageStore.shared.$selection.sink { [weak self] _ in
+            Task { @MainActor in self?.applyLanguage() }
+        }
         stateObservation = store.$state.sink { [weak self] _ in
-            self?.renderStatusItem()
+            Task { @MainActor in self?.renderStatusItem() }
         }
         autoRefreshObservation = autoRefreshScheduler.$state.sink { [weak self] state in
             Task { @MainActor in
@@ -78,7 +84,8 @@ final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func configureStatusItem() {
-        let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        let statusItem = self.statusItem ?? NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        statusItem.menu?.removeAllItems()
         let menu = NSMenu()
         [shortTermItem, longTermItem, sourceItem].forEach {
             $0.isEnabled = false
@@ -104,11 +111,25 @@ final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
             menu.addItem($0)
         }
         menu.addItem(.separator())
-        menu.addItem(withTitle: "定位 Codex 会话…", action: #selector(showSessionBrowser), keyEquivalent: "f").target = self
-        menu.addItem(withTitle: "立即刷新", action: #selector(refresh), keyEquivalent: "r").target = self
+        menu.addItem(withTitle: L10n.tr("定位 Codex 会话…"), action: #selector(showSessionBrowser), keyEquivalent: "f").target = self
+        menu.addItem(withTitle: L10n.tr("立即刷新"), action: #selector(refresh), keyEquivalent: "r").target = self
         menu.addItem(.separator())
-        menu.addItem(withTitle: "新手引导与帮助…", action: #selector(showHelp), keyEquivalent: "?").target = self
-        menu.addItem(withTitle: "退出", action: #selector(quit), keyEquivalent: "q").target = self
+        let languageItem = NSMenuItem(title: L10n.tr("语言"), action: nil, keyEquivalent: "")
+        let languageMenu = NSMenu()
+        let choices: [(AppLanguage, String)] = [
+            (.system, L10n.tr("跟随系统")), (.simplifiedChinese, "简体中文"), (.english, "English")
+        ]
+        for (language, title) in choices {
+            let item = NSMenuItem(title: title, action: #selector(changeLanguage(_:)), keyEquivalent: "")
+            item.representedObject = language.rawValue
+            item.target = self
+            item.state = AppLanguageStore.shared.selection == language ? .on : .off
+            languageMenu.addItem(item)
+        }
+        languageItem.submenu = languageMenu
+        menu.addItem(languageItem)
+        menu.addItem(withTitle: L10n.tr("新手引导与帮助…"), action: #selector(showHelp), keyEquivalent: "?").target = self
+        menu.addItem(withTitle: L10n.tr("退出"), action: #selector(quit), keyEquivalent: "q").target = self
 
         statusItem.menu = menu
         statusItem.button?.image = nil
@@ -119,12 +140,25 @@ final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
         renderResetForecastMenu()
     }
 
+    @objc private func changeLanguage(_ sender: NSMenuItem) {
+        guard let rawValue = sender.representedObject as? String,
+              let language = AppLanguage(rawValue: rawValue) else { return }
+        AppLanguageStore.shared.select(language)
+    }
+
+    private func applyLanguage() {
+        autoRefreshScheduleItem.title = L10n.tr("修改触发时间…")
+        configureStatusItem()
+        sessionPanel?.title = L10n.tr("定位 Codex 会话")
+        helpWindow?.title = L10n.tr("Codex Quota · 新手引导与帮助")
+    }
+
     private func renderStatusItem() {
         renderAutoRefreshMenu(autoRefreshScheduler.state)
         guard let snapshot = store.snapshot else {
             let message = store.errorMessage
-            statusItem?.button?.title = message == nil ? "读取中…" : "额度不可用"
-            shortTermItem.title = message ?? "正在连接 Codex CLI…"
+            statusItem?.button?.title = message == nil ? L10n.tr("读取中…") : L10n.tr("额度不可用")
+            shortTermItem.title = message ?? L10n.tr("正在连接 Codex CLI…")
             longTermItem.title = ""
             sourceItem.title = ""
             return
@@ -136,25 +170,25 @@ final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
             : "\(snapshot.shortTerm.clampedPercent)% \(TimeFormatter.remaining(snapshot.shortTerm.resetsAt))"
         statusItem?.button?.title = snapshot.longTerm.map { "\(shortTermText) · \($0.clampedPercent)%" } ?? shortTermText
         shortTermItem.title = isLongTermOnly
-            ? "长期：剩余 \(snapshot.shortTerm.clampedPercent)% · \(TimeFormatter.fullDate(snapshot.shortTerm.resetsAt)) 重置"
-            : "短周期：剩余 \(snapshot.shortTerm.clampedPercent)% · \(TimeFormatter.remaining(snapshot.shortTerm.resetsAt)) 后重置"
-        longTermItem.title = snapshot.longTerm.map { "长期：剩余 \($0.clampedPercent)% · \(TimeFormatter.fullDate($0.resetsAt)) 重置" } ?? (isLongTermOnly ? "短周期：当前套餐未提供此额度周期" : "长期：当前套餐未提供此额度周期")
-        sourceItem.title = "更新于 \(snapshot.updatedAt.formatted(date: .omitted, time: .shortened)) · \(snapshot.sourceDescription)"
+            ? L10n.tr("长期：剩余 \(snapshot.shortTerm.clampedPercent)% · \(TimeFormatter.fullDate(snapshot.shortTerm.resetsAt)) 重置")
+            : L10n.tr("短周期：剩余 \(snapshot.shortTerm.clampedPercent)% · \(TimeFormatter.remaining(snapshot.shortTerm.resetsAt)) 后重置")
+        longTermItem.title = snapshot.longTerm.map { L10n.tr("长期：剩余 \($0.clampedPercent)% · \(TimeFormatter.fullDate($0.resetsAt)) 重置") } ?? (isLongTermOnly ? L10n.tr("短周期：当前套餐未提供此额度周期") : L10n.tr("长期：当前套餐未提供此额度周期"))
+        sourceItem.title = L10n.tr("更新于 \(snapshot.updatedAt.formatted(Date.FormatStyle(date: .omitted, time: .shortened).locale(L10n.locale))) · \(snapshot.localizedSourceDescription)")
     }
 
     private func renderAutoRefreshMenu(_ state: AutoRefreshState) {
-        let statusText = state.autoRefreshEnabled ? "开启" : "关闭"
-        autoRefreshToggleItem.title = state.autoRefreshEnabled ? "关闭自动刷新额度" : "开启自动刷新额度"
+        let statusText = state.autoRefreshEnabled ? L10n.tr("开启") : L10n.tr("关闭")
+        autoRefreshToggleItem.title = state.autoRefreshEnabled ? L10n.tr("关闭自动刷新额度") : L10n.tr("开启自动刷新额度")
         autoRefreshToggleItem.state = .off
-        autoRefreshTimesItem.title = "触发时间：\(AutoRefreshSchedule.formattedTimeList(state.triggerMinutes))"
-        autoRefreshStatusItem.title = "当前状态：\(statusText)"
-        lastAutoRefreshItem.title = "最近一次触发：\(formatAutoRefreshDate(state.lastTriggerTime))"
-        nextAutoRefreshItem.title = "下一次计划触发：\(formatAutoRefreshDate(state.nextTriggerTime))"
+        autoRefreshTimesItem.title = L10n.tr("触发时间：\(AutoRefreshSchedule.formattedTimeList(state.triggerMinutes))")
+        autoRefreshStatusItem.title = L10n.tr("当前状态：\(statusText)")
+        lastAutoRefreshItem.title = L10n.tr("最近一次触发：\(formatAutoRefreshDate(state.lastTriggerTime))")
+        nextAutoRefreshItem.title = L10n.tr("下一次计划触发：\(formatAutoRefreshDate(state.nextTriggerTime))")
     }
 
     private func formatAutoRefreshDate(_ date: Date?) -> String {
         guard let date else { return "—" }
-        return date.formatted(.dateTime.month().day().hour().minute())
+        return date.formatted(.dateTime.month().day().hour().minute().locale(L10n.locale))
     }
 
     @objc private func refresh() {
@@ -162,20 +196,20 @@ final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func renderResetForecastMenu() {
-        resetForecastToggleItem.title = resetForecastStore.isEnabled ? "关闭重置概率预测" : "开启重置概率预测"
+        resetForecastToggleItem.title = resetForecastStore.isEnabled ? L10n.tr("关闭重置概率预测") : L10n.tr("开启重置概率预测")
         guard resetForecastStore.isEnabled else {
-            resetForecastItem.title = "48 小时重置概率：未启用"
-            resetForecastSourceItem.title = "第三方估算 · willcodexquotareset.com"
+            resetForecastItem.title = L10n.tr("48 小时重置概率：未启用")
+            resetForecastSourceItem.title = L10n.tr("第三方估算 · willcodexquotareset.com")
             return
         }
         guard let forecast = resetForecastStore.forecast else {
-            resetForecastItem.title = resetForecastStore.errorMessage ?? "48 小时重置概率：读取中…"
-            resetForecastSourceItem.title = "第三方估算 · willcodexquotareset.com"
+            resetForecastItem.title = resetForecastStore.errorMessage ?? L10n.tr("48 小时重置概率：读取中…")
+            resetForecastSourceItem.title = L10n.tr("第三方估算 · willcodexquotareset.com")
             return
         }
-        let stale = resetForecastStore.errorMessage == nil ? "" : " · 数据可能已过期"
-        resetForecastItem.title = "\(forecast.horizonHours) 小时重置概率：\(forecast.score)%\(stale)"
-        resetForecastSourceItem.title = "第三方估算 · 更新于 \(forecast.fetchedAt.formatted(date: .abbreviated, time: .shortened)) · willcodexquotareset.com"
+        let stale = resetForecastStore.errorMessage == nil ? "" : L10n.tr(" · 数据可能已过期")
+        resetForecastItem.title = L10n.tr("\(forecast.horizonHours) 小时重置概率：\(forecast.score)%\(stale)")
+        resetForecastSourceItem.title = L10n.tr("第三方估算 · 更新于 \(forecast.fetchedAt.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened).locale(L10n.locale))) · willcodexquotareset.com")
     }
 
     @objc private func toggleResetForecast() {
@@ -190,12 +224,12 @@ final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
         }
 
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 580, height: 600),
+            contentRect: NSRect(x: 0, y: 0, width: 700, height: 620),
             styleMask: [.titled, .closable, .utilityWindow],
             backing: .buffered,
             defer: false
         )
-        panel.title = "定位 Codex 会话"
+        panel.title = L10n.tr("定位 Codex 会话")
         panel.isReleasedWhenClosed = false
         panel.center()
         panel.contentView = NSHostingView(rootView: SessionBrowserView(store: sessionStore))
@@ -221,7 +255,7 @@ final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
             backing: .buffered,
             defer: false
         )
-        window.title = "Codex Quota · 新手引导与帮助"
+        window.title = L10n.tr("Codex Quota · 新手引导与帮助")
         window.isReleasedWhenClosed = false
         window.contentView = NSHostingView(rootView: QuotaHelpView(
             store: store,
@@ -237,13 +271,13 @@ final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func editAutoRefreshSchedule() {
         let alert = NSAlert()
-        alert.messageText = "修改自动刷新触发时间"
-        alert.informativeText = "使用 24 小时制；以逗号或顿号分隔，例如：06:00、12:30、18:00。"
-        alert.addButton(withTitle: "保存")
-        alert.addButton(withTitle: "取消")
+        alert.messageText = L10n.tr("修改自动刷新触发时间")
+        alert.informativeText = L10n.tr("使用 24 小时制，以英文逗号分隔，例如：06:00, 12:30, 18:00。")
+        alert.addButton(withTitle: L10n.tr("保存"))
+        alert.addButton(withTitle: L10n.tr("取消"))
 
         let field = NSTextField(string: AutoRefreshSchedule.formattedTimeList(autoRefreshScheduler.state.triggerMinutes))
-        field.frame = NSRect(x: 0, y: 0, width: 320, height: 24)
+        field.frame = NSRect(x: 0, y: 0, width: 400, height: 24)
         alert.accessoryView = field
 
         guard alert.runModal() == .alertFirstButtonReturn else { return }
@@ -256,9 +290,9 @@ final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
 
     private func showInvalidScheduleAlert() {
         let alert = NSAlert()
-        alert.messageText = "无法保存触发时间"
-        alert.informativeText = "请输入至少一个有效时间，格式例如：06:00、12:30、18:00。"
-        alert.addButton(withTitle: "好")
+        alert.messageText = L10n.tr("无法保存触发时间")
+        alert.informativeText = L10n.tr("请输入有效的 24 小时时间，并用英文逗号分隔，例如：06:00, 12:30, 18:00。")
+        alert.addButton(withTitle: L10n.tr("好"))
         alert.runModal()
     }
 

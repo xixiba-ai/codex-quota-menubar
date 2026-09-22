@@ -5,6 +5,7 @@ final class QuotaStore: ObservableObject {
     @Published private(set) var state: QuotaState = .loading(nil)
     @Published private(set) var isRefreshing = false
 
+    private var latestError: Error?
     private var refreshTask: Task<Void, Never>?
     private let refreshInterval: Duration = .seconds(60)
     private let dataSource: any UsageDataSource
@@ -19,7 +20,7 @@ final class QuotaStore: ObservableObject {
 
     var snapshot: CodexUsageSnapshot? { state.snapshot }
     var errorMessage: String? {
-        if case .unavailable(let message, _) = state { return message }
+        if case .unavailable(let message, _) = state { return latestError?.localizedDescription ?? message }
         return nil
     }
 
@@ -45,8 +46,11 @@ final class QuotaStore: ObservableObject {
         let previous = snapshot
         state = .loading(previous)
         do {
-            state = .available(try await dataSource.fetchUsage())
+            let snapshot = try await dataSource.fetchUsage()
+            latestError = nil
+            state = .available(snapshot)
         } catch {
+            latestError = error
             state = .unavailable(message: error.localizedDescription, lastKnown: previous)
         }
     }

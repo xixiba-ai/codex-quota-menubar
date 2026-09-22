@@ -2,6 +2,7 @@ import SwiftUI
 import AppKit
 
 struct SessionBrowserView: View {
+    @ObservedObject private var language = AppLanguageStore.shared
     @ObservedObject var store: SessionStore
     @State private var searchText = ""
     @State private var selectedCWD = ""
@@ -35,7 +36,7 @@ struct SessionBrowserView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Label("定位 Codex 会话", systemImage: "bubble.left.and.bubble.right")
+                Label(L10n.tr("定位 Codex 会话"), systemImage: "bubble.left.and.bubble.right")
                     .font(.headline)
                 Spacer()
                 if store.isLoading { ProgressView().controlSize(.small) }
@@ -44,41 +45,42 @@ struct SessionBrowserView: View {
                     Image(systemName: "arrow.clockwise")
                 }
                 .buttonStyle(.borderless)
-                .help("刷新会话列表")
+                .help(L10n.tr("刷新会话列表"))
             }
 
-            TextField("搜索标题、任务、项目目录或 Session ID", text: $searchText)
+            TextField(L10n.tr("搜索标题、任务、项目目录或 Session ID"), text: $searchText)
                 .textFieldStyle(.roundedBorder)
 
             HStack {
-                Picker("项目", selection: $selectedCWD) {
-                    Text("全部项目").tag("")
+                Picker(L10n.tr("项目"), selection: $selectedCWD) {
+                    Text(L10n.tr("全部项目")).tag("")
                     ForEach(projectPaths, id: \.self) { path in
                         Text(URL(fileURLWithPath: path).lastPathComponent).tag(path)
                     }
                 }
+                .id(language.selection)
                 .labelsHidden()
                 .frame(maxWidth: 260)
-                Toggle("最近 7 天", isOn: $recentOnly)
+                Toggle(L10n.tr("最近 7 天"), isOn: $recentOnly)
                     .toggleStyle(.checkbox)
                 Spacer()
-                Text("\(filteredSessions.count) 个会话")
+                Text(L10n.tr("\(filteredSessions.count) 个会话"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
             HStack(spacing: 10) {
-                Text("批量清理")
+                Text(L10n.tr("批量清理"))
                     .font(.caption.weight(.semibold))
                 Stepper(value: $cleanupDays, in: 1...365) {
-                    Text("\(cleanupDays) 天前")
+                    Text(L10n.tr("\(cleanupDays) 天前"))
                         .font(.caption)
                 }
-                Text("\(cleanupCandidates.count) 个非活跃会话")
+                Text(L10n.tr("\(cleanupCandidates.count) 个非活跃会话"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
-                Button("删除", role: .destructive) {
+                Button(L10n.tr("删除"), role: .destructive) {
                     deletionRequest = .batch(days: cleanupDays, sessions: cleanupCandidates)
                 }
                 .disabled(cleanupCandidates.isEmpty || store.isDeleting)
@@ -100,8 +102,8 @@ struct SessionBrowserView: View {
                         Image(systemName: "magnifyingglass")
                             .font(.title2)
                             .foregroundStyle(.secondary)
-                        Text("未找到会话").font(.subheadline)
-                        Text("尝试清除搜索条件或关闭“最近 7 天”。")
+                        Text(L10n.tr("未找到会话")).font(.subheadline)
+                        Text(L10n.tr("尝试清除搜索条件或关闭“最近 7 天”。"))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -120,7 +122,7 @@ struct SessionBrowserView: View {
                     deletionRequest = .single(session)
                 }
             } else {
-                Text("选择一个会话以复制续接命令或打开对应项目。")
+                Text(L10n.tr("选择一个会话以复制续接命令或打开对应项目。"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -128,14 +130,14 @@ struct SessionBrowserView: View {
             }
         }
         .padding(16)
-        .frame(width: 580, height: 600)
+        .frame(width: 700, height: 620)
         .task { await store.refresh() }
         .onChange(of: selectedSession) { _ in copied = false }
         .alert(item: $deletionRequest) { request in
             Alert(
                 title: Text(request.title),
                 message: Text(request.message),
-                primaryButton: .destructive(Text("终止并删除")) {
+                primaryButton: .destructive(Text(L10n.tr("终止并删除"))) {
                     Task {
                         let didDelete = await store.delete(request.sessions)
                         if didDelete, let selectedSession,
@@ -144,13 +146,14 @@ struct SessionBrowserView: View {
                         }
                     }
                 },
-                secondaryButton: .cancel(Text("取消"))
+                secondaryButton: .cancel(Text(L10n.tr("取消")))
             )
         }
     }
 }
 
 private struct SessionRow: View {
+    @ObservedObject private var language = AppLanguageStore.shared
     let session: CodexSession
 
     var body: some View {
@@ -162,7 +165,7 @@ private struct SessionRow: View {
             }
             Text(session.cwd).font(.caption).foregroundStyle(.secondary).lineLimit(1)
             HStack {
-                Text(session.updatedAt.formatted(.dateTime.month().day().hour().minute()))
+                Text(session.updatedAt.formatted(.dateTime.month().day().hour().minute().locale(L10n.locale)))
                 Text("·")
                 Text(session.preview).lineLimit(1)
             }
@@ -182,6 +185,7 @@ private struct SessionRow: View {
 }
 
 private struct SessionDetail: View {
+    @ObservedObject private var language = AppLanguageStore.shared
     let session: CodexSession
     let copied: Bool
     let copyCommand: () -> Void
@@ -194,14 +198,13 @@ private struct SessionDetail: View {
             Text(session.displayTitle).font(.subheadline.weight(.semibold)).lineLimit(1)
             Text(session.id).font(.caption.monospaced()).foregroundStyle(.secondary).textSelection(.enabled)
             HStack {
-                Button(copied ? "已复制续接命令" : "复制续接命令", action: copyCommand)
-                Button("打开项目目录", action: openProject)
-                Button(session.status.isActive ? "终止并删除会话…" : "删除会话…", role: .destructive, action: deleteSession)
-                Spacer()
-                Text("在终端粘贴后即可继续会话")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Button(copied ? L10n.tr("已复制续接命令") : L10n.tr("复制续接命令"), action: copyCommand)
+                Button(L10n.tr("打开项目目录"), action: openProject)
+                Button(session.status.isActive ? L10n.tr("终止并删除会话…") : L10n.tr("删除会话…"), role: .destructive, action: deleteSession)
             }
+            Text(L10n.tr("在终端粘贴后即可继续会话"))
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 }
@@ -223,8 +226,8 @@ private struct DeletionRequest: Identifiable {
 
     var title: String {
         switch kind {
-        case .single: "终止并删除会话？"
-        case .batch(let days): "删除超过 \(days) 天的会话？"
+        case .single: L10n.tr("终止并删除会话？")
+        case .batch(let days): L10n.tr("删除超过 \(days) 天的会话？")
         }
     }
 
@@ -232,9 +235,9 @@ private struct DeletionRequest: Identifiable {
         switch kind {
         case .single:
             let session = sessions[0]
-            return "“\(session.displayTitle.confirmationExcerpt)”及其派生会话将被永久删除，无法恢复。\(session.status.isActive ? "该会话当前正在运行，会被终止。" : "")"
+            return L10n.tr("“\(session.displayTitle.confirmationExcerpt)”及其派生会话将被永久删除，无法恢复。\(session.status.isActive ? L10n.tr("该会话当前正在运行，会被终止。") : "")")
         case .batch(let days):
-            return "将永久删除 \(sessions.count) 个最后活跃于 \(days) 天前的非活跃会话及其派生会话，无法恢复。正在运行的会话不会受影响。"
+            return L10n.tr("将永久删除 \(sessions.count) 个最后活跃于 \(days) 天前的非活跃会话及其派生会话，无法恢复。正在运行的会话不会受影响。")
         }
     }
 }

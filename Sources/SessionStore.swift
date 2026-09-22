@@ -5,7 +5,12 @@ final class SessionStore: ObservableObject {
     @Published private(set) var sessions: [CodexSession] = []
     @Published private(set) var isLoading = false
     @Published private(set) var isDeleting = false
-    @Published private(set) var errorMessage: String?
+    @Published private var lastError: Error?
+    private var deletionFailed = false
+    var errorMessage: String? {
+        guard let lastError else { return nil }
+        return deletionFailed ? L10n.tr("删除会话时出错：\(lastError.localizedDescription)") : lastError.localizedDescription
+    }
 
     private let dataSource = CodexSessionDataSource()
 
@@ -15,9 +20,11 @@ final class SessionStore: ObservableObject {
         defer { isLoading = false }
         do {
             sessions = try await dataSource.listSessions()
-            errorMessage = nil
+            lastError = nil
+            deletionFailed = false
         } catch {
-            errorMessage = error.localizedDescription
+            lastError = error
+            deletionFailed = false
         }
     }
 
@@ -37,11 +44,13 @@ final class SessionStore: ObservableObject {
             }
             let deletedIDs = Set(targets.map(\.id))
             sessions.removeAll { deletedIDs.contains($0.id) }
-            errorMessage = nil
+            lastError = nil
+            deletionFailed = false
             return true
         } catch {
-            errorMessage = "删除会话时出错：\(error.localizedDescription)"
             await refresh()
+            deletionFailed = true
+            lastError = error
             return false
         }
     }

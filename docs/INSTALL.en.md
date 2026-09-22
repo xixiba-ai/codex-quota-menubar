@@ -8,11 +8,11 @@ Download `Codex-Quota-VERSION-universal.dmg` from [GitHub Releases](https://gith
 
 Install and sign in to Codex CLI on your Mac before using quota features. The installer does not include Codex CLI or any login credentials. This first public preview has not been tested on every supported macOS version and hardware configuration.
 
-**The current app interface is in Simplified Chinese.** This guide includes the Chinese menu labels needed for installation and first use.
+**Starting with v1.0.0-preview.2, the app supports English and Simplified Chinese.** It follows the system language by default, with English as the fallback. Use **Language → Follow System / 简体中文 / English** to switch immediately. Earlier preview installers have a Chinese-only interface.
 
 ## Install
 
-1. If an older Codex Quota is running, choose **退出** (Quit) from its menu bar menu.
+1. If an older Codex Quota is running, choose **Quit / 退出** from its menu bar menu.
 2. Open the DMG and drag **Codex Quota.app** into the **Applications** folder beside it.
 3. Eject the disk image, then open Codex Quota from Applications.
 4. Look for the app in the menu bar at the top of your screen. It has no Dock icon. A help window appears on first launch.

@@ -6,7 +6,7 @@ A native menu bar app for macOS 13+ that shows your remaining Codex quota and re
 
 This is an unofficial community project and is not affiliated with OpenAI.
 
-**Language:** the documentation is available in English and Simplified Chinese. The current app interface is in Simplified Chinese; English labels below explain the corresponding menu items.
+**Languages:** the app and documentation support English and Simplified Chinese. The app uses the first supported language in your system language preferences by default, falling back to English. Choose **Language → Follow System / 简体中文 / English** in the menu, or use the language picker in Help, to switch immediately; your choice is saved. Your session titles, task text, project paths, and messages from external services stay in their original language.
 
 ## Requirements
 
@@ -87,7 +87,7 @@ The menu shows the service's reset probability over a 48-hour horizon, its updat
 
 **自动刷新额度** toggles scheduled activity. The feature is off by default. Its default schedule sends a minimal local Codex CLI request at **05:30, 10:30, 15:30, and 20:30**, using local time. This runs independently from the quota reader and does not change its 60-second refresh interval.
 
-Choose **修改触发时间…** (Edit trigger times) to enter one or more 24-hour times, such as `06:00, 12:30, 18:00`. Saving immediately reschedules the next trigger.
+Choose **修改触发时间…** (Edit Trigger Times) to enter one or more `HH:mm` 24-hour times, separated by English commas: `06:00, 12:30, 18:00`. Both languages use the same format; Chinese commas, enumeration commas, and empty entries are rejected. Existing saved schedules are preserved. Saving immediately reschedules the next trigger.
 
 The menu shows the current state, last trigger, and next scheduled trigger. The app persists its setting, latest result, and handled time windows. On launch or wake after a missed schedule, it compensates for only the most recent missed window and does not repeat a handled window.
 

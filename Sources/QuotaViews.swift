@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct ObservedQuotaMenuBarLabel: View {
+    @ObservedObject private var language = AppLanguageStore.shared
     @ObservedObject var store: QuotaStore
 
     var body: some View {
@@ -9,6 +10,7 @@ struct ObservedQuotaMenuBarLabel: View {
 }
 
 struct QuotaMenuBarLabel: View {
+    @ObservedObject private var language = AppLanguageStore.shared
     let snapshot: CodexUsageSnapshot?
 
     var body: some View {
@@ -35,7 +37,7 @@ struct QuotaMenuBarLabel: View {
             } else {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .foregroundStyle(.red)
-                    .accessibilityLabel("Codex 额度数据不可用")
+                    .accessibilityLabel(L10n.tr("Codex 额度数据不可用"))
             }
         }
         .fixedSize(horizontal: true, vertical: false)
@@ -43,6 +45,7 @@ struct QuotaMenuBarLabel: View {
 }
 
 private struct QuotaLines: View {
+    @ObservedObject private var language = AppLanguageStore.shared
     let snapshot: CodexUsageSnapshot
     let compact: Bool
 
@@ -56,7 +59,7 @@ private struct QuotaLines: View {
         .font(.system(size: 7, weight: .medium, design: .rounded))
         .monospacedDigit()
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(snapshot.longTerm.map { "短周期剩余 \(snapshot.shortTerm.remainingPercent)%，长期剩余 \($0.remainingPercent)%" } ?? "短周期剩余 \(snapshot.shortTerm.remainingPercent)%")
+        .accessibilityLabel(snapshot.longTerm.map { L10n.tr("短周期剩余 \(snapshot.shortTerm.remainingPercent)%，长期剩余 \($0.remainingPercent)%") } ?? L10n.tr("短周期剩余 \(snapshot.shortTerm.remainingPercent)%"))
     }
 }
 
@@ -79,22 +82,23 @@ private struct StatusLine: View {
 }
 
 struct QuotaMenuContent: View {
+    @ObservedObject private var language = AppLanguageStore.shared
     @ObservedObject var store: QuotaStore
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Label("Codex 使用额度", systemImage: "gauge.with.dots.needle.50percent")
+                Label(L10n.tr("Codex 使用额度"), systemImage: "gauge.with.dots.needle.50percent")
                     .font(.headline)
                 Spacer()
                 if store.isRefreshing { ProgressView().controlSize(.small) }
             }
 
             if let snapshot = store.snapshot {
-                DetailRow(title: snapshot.hasOnlyLongTermWindow ? "长期" : "短周期", window: snapshot.shortTerm, resetText: snapshot.hasOnlyLongTermWindow ? "重置于 \(TimeFormatter.fullDate(snapshot.shortTerm.resetsAt))" : "剩余 \(TimeFormatter.remaining(snapshot.shortTerm.resetsAt))")
+                DetailRow(title: snapshot.hasOnlyLongTermWindow ? L10n.tr("长期") : L10n.tr("短周期"), window: snapshot.shortTerm, resetText: snapshot.hasOnlyLongTermWindow ? L10n.tr("重置于 \(TimeFormatter.fullDate(snapshot.shortTerm.resetsAt))") : L10n.tr("剩余 \(TimeFormatter.remaining(snapshot.shortTerm.resetsAt))"))
                 if let longTerm = snapshot.longTerm {
-                    DetailRow(title: "长期", window: longTerm, resetText: "重置于 \(TimeFormatter.fullDate(longTerm.resetsAt))")
+                    DetailRow(title: L10n.tr("长期"), window: longTerm, resetText: L10n.tr("重置于 \(TimeFormatter.fullDate(longTerm.resetsAt))"))
                 }
-                Text("更新：\(snapshot.updatedAt.formatted(date: .omitted, time: .shortened)) · \(snapshot.sourceDescription)")
+                Text(L10n.tr("更新：\(snapshot.updatedAt.formatted(Date.FormatStyle(date: .omitted, time: .shortened).locale(L10n.locale))) · \(snapshot.localizedSourceDescription)"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
@@ -102,8 +106,8 @@ struct QuotaMenuContent: View {
                     Image(systemName: "exclamationmark.triangle")
                         .font(.title2)
                         .foregroundStyle(.secondary)
-                    Text("无法加载额度").font(.subheadline)
-                    Text(store.errorMessage ?? "正在连接额度服务")
+                    Text(L10n.tr("无法加载额度")).font(.subheadline)
+                    Text(store.errorMessage ?? L10n.tr("正在连接额度服务"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -120,11 +124,11 @@ struct QuotaMenuContent: View {
             Divider()
             HStack {
                 Button { Task { await store.refresh() } } label: {
-                    Label("立即刷新", systemImage: "arrow.clockwise")
+                    Label(L10n.tr("立即刷新"), systemImage: "arrow.clockwise")
                 }
                 .keyboardShortcut("r")
                 Spacer()
-                Button("退出") { NSApplication.shared.terminate(nil) }
+                Button(L10n.tr("退出")) { NSApplication.shared.terminate(nil) }
             }
         }
         .padding(16)
@@ -160,10 +164,10 @@ enum TimeFormatter {
     }
 
     static func resetDate(_ date: Date) -> String {
-        date.formatted(.dateTime.month(.abbreviated).day())
+        date.formatted(.dateTime.month(.abbreviated).day().locale(L10n.locale))
     }
 
     static func fullDate(_ date: Date) -> String {
-        date.formatted(.dateTime.month(.wide).day().hour().minute())
+        date.formatted(.dateTime.month(.wide).day().hour().minute().locale(L10n.locale))
     }
 }

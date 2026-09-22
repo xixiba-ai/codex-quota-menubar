@@ -9,9 +9,9 @@ final class CodexSessionDataSource {
 
         var errorDescription: String? {
             switch self {
-            case .executableNotFound: "未找到 Codex CLI；请先安装并登录 Codex"
-            case .invalidMessage: "Codex CLI 返回了无法识别的会话数据"
-            case .processStopped: "Codex CLI 本地会话服务已停止"
+            case .executableNotFound: L10n.tr("未找到 Codex CLI；请先安装并登录 Codex")
+            case .invalidMessage: L10n.tr("Codex CLI 返回了无法识别的会话数据")
+            case .processStopped: L10n.tr("Codex CLI 本地会话服务已停止")
             }
         }
     }

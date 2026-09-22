@@ -82,7 +82,7 @@ An old `distribution/staging/Codex Quota.app` may also be discovered by LaunchSe
 Complete verification and commit your changes first, then run:
 
 ```sh
-./scripts/package-release.sh 1.0.0-preview.1 1
+./scripts/package-release.sh 1.0.0-preview.2 2
 ```
 
 Use a new version for a new release. The script requires full Xcode; use `DEVELOPER_DIR` to select a specific installation. It exports the current commit, builds arm64 and x86_64 Release binaries in a separate temporary directory, checks the version and bundle contents, adds the MIT license and installation guides, and creates a DMG and SHA-256 checksums. It stops if output for that version already exists.
@@ -126,3 +126,11 @@ log show --last 1h --predicate 'subsystem == "com.example.CodexQuotaMenuBar" AND
 - Codex's local app-server protocol is experimental. CLI upgrades may require adapting `UsageDataSource.swift`.
 - Developer signing is disabled in the project. The packaging script applies an ad-hoc integrity signature only; Developer ID signing and Apple notarization are not configured.
 - Legacy `distribution/Codex Quota.dmg` and `distribution/staging/` are outside the release process and should not be uploaded.
+
+## Localization
+
+`Sources/Localization.swift` resolves the saved `appLanguage` setting (`system`, `zh-Hans`, or `en`) and reads `Resources/en.lproj/Localizable.strings` and `Resources/zh-Hans.lproj/Localizable.strings`. System mode chooses the first supported language in the preferred-language list, with English as the fallback. Language changes update menus, open windows, dates, and app-owned errors without restarting or sending a Codex request. Session content and external service messages are not translated.
+
+Use `L10n.tr` for app-owned text. Interpolated values become numbered placeholders; keep matching placeholders in both resource files. Do not translate user text or change persisted enum values. `LocalizationTests` checks resource parity, placeholder safety, language persistence, quota errors, and schedule input. Test launches skip live CLI and scheduler startup.
+
+Schedule input accepts only `HH:mm` 24-hour times separated by ASCII commas, with optional surrounding whitespace. Formatting always uses `, ` in both languages. Existing schedules store numeric minutes, so no migration is needed.

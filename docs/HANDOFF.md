@@ -43,7 +43,7 @@ open "/private/tmp/CodexQuotaMenuBarDerivedData/Build/Products/Debug/Codex Quota
 - 额度读取每 60 秒校验一次，并监听本机 CLI 推送。
 - 第三方重置概率默认关闭；开启时跟随主动额度读取和计划 CLI 触发，被动推送不触发请求。
 - 自动刷新与额度读取独立：仅在用户设定的时间点执行最小化 CLI 请求。
-- 自动刷新默认时间为 `05:30、10:30、15:30、20:30`，可通过菜单的“修改触发时间…”改为一个或多个 24 小时制时间。
+- 自动刷新默认时间为 `05:30, 10:30, 15:30, 20:30`，可通过菜单的“修改触发时间…”改为一个或多个 24 小时制时间。
 - 开关、触发时间、上次结果和已处理窗口保存在 `UserDefaults` 的 `autoRefreshState` 键下。
 - 休眠、启动、系统时钟变更后，只补偿当前最新的一个漏掉窗口；同一窗口不会重复触发。
 
@@ -84,7 +84,7 @@ open "/Applications/Codex Quota.app"
 先完成测试并提交工作区改动，再运行：
 
 ```sh
-./scripts/package-release.sh 1.0.0-preview.1 1
+./scripts/package-release.sh 1.0.0-preview.2 2
 ```
 
 脚本要求完整 Xcode；需要选择特定 Xcode 时，通过 `DEVELOPER_DIR` 指定。它导出当前提交，在独立临时目录构建 arm64 / x86_64 Release，校验版本与包内容，加入 MIT 许可证和安装说明，并生成 DMG 和 SHA-256 校验文件。已有同版本输出时会停止，避免覆盖。
@@ -128,3 +128,11 @@ log show --last 1h --predicate 'subsystem == "com.example.CodexQuotaMenuBar" AND
 - 本机 Codex app-server 协议是 experimental；CLI 升级后如无法读取额度，优先检查 `UsageDataSource.swift` 的协议适配。
 - 工程当前关闭开发者代码签名（见 `project.yml`）；打包脚本仅添加 ad-hoc 完整性签名。面向正式分发的 Developer ID 签名和 Apple 公证尚未配置。
 - 旧的 `distribution/Codex Quota.dmg` 和 `distribution/staging/` 不属于当前发行流程，不应上传。
+
+## 本地化维护
+
+`Sources/Localization.swift` 读取 `appLanguage` 偏好（`system`、`zh-Hans` 或 `en`），并加载 `Resources/en.lproj/Localizable.strings` 和 `Resources/zh-Hans.lproj/Localizable.strings`。跟随系统时按首选语言顺序选择支持的语言，默认回退为英文。切换后菜单、已打开窗口、日期和应用自身的错误提示即时更新，不重启应用，也不发起 Codex 请求。用户会话内容和外部服务消息不翻译。
+
+应用文案使用 `L10n.tr`。插值内容转为编号占位符，两种语言须保留一致的占位符。不要翻译用户内容或改变已持久化的枚举值。`LocalizationTests` 覆盖资源一致性、插值安全、语言偏好持久化、额度错误和时间输入；测试启动不连接真实 CLI 或恢复调度任务。
+
+触发时间仅接受 `HH:mm` 24 小时制，以英文逗号分隔，可在每个时间前后留空白。中英文显示均使用 `, `。旧计划按数值分钟保存，无需迁移。

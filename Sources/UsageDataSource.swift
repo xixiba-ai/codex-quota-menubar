@@ -52,7 +52,7 @@ final class RemoteJSONUsageDataSource: UsageDataSource {
             shortTerm: payload.shortTerm,
             longTerm: payload.longTerm,
             updatedAt: payload.updatedAt,
-            sourceDescription: "已配置的数据源"
+            sourceDescription: "Configured data source"
         )
     }
 }
@@ -69,10 +69,10 @@ final class CodexAppServerUsageDataSource: LiveUsageDataSource {
 
         var errorDescription: String? {
             switch self {
-            case .executableNotFound: "未找到 Codex CLI；请先安装并登录 Codex"
-            case .invalidMessage: "Codex CLI 返回了无法识别的额度数据"
-            case .missingRateLimits: "Codex CLI 未返回可用的额度周期"
-            case .processStopped: "Codex CLI 本地额度服务已停止"
+            case .executableNotFound: L10n.tr("未找到 Codex CLI；请先安装并登录 Codex")
+            case .invalidMessage: L10n.tr("Codex CLI 返回了无法识别的额度数据")
+            case .missingRateLimits: L10n.tr("Codex CLI 未返回可用的额度周期")
+            case .processStopped: L10n.tr("Codex CLI 本地额度服务已停止")
             }
         }
     }
@@ -235,7 +235,7 @@ final class CodexAppServerUsageDataSource: LiveUsageDataSource {
             shortTerm: primary,
             longTerm: usageWindow(selected["secondary"]),
             updatedAt: .now,
-            sourceDescription: "Codex CLI（本机实时）"
+            sourceDescription: "Codex CLI (local, live)"
         )
     }
 
@@ -308,8 +308,8 @@ enum UsageDataSourceError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .invalidResponse: "额度服务未返回有效数据"
-        case .noAuthorizedEndpoint: "尚未配置已授权的额度数据源"
+        case .invalidResponse: L10n.tr("额度服务未返回有效数据")
+        case .noAuthorizedEndpoint: L10n.tr("尚未配置已授权的额度数据源")
         }
     }
 }

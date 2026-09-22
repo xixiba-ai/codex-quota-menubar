@@ -90,13 +90,15 @@ enum AutoRefreshSchedule {
     }
 
     static func parseTimeList(_ text: String) -> [Int]? {
-        let parts = text.split(whereSeparator: { $0 == "," || $0 == "，" || $0 == "、" || $0.isWhitespace })
+        let parts = text.components(separatedBy: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
         guard !parts.isEmpty else { return nil }
 
         var minutes: [Int] = []
         for part in parts {
             let components = part.split(separator: ":", omittingEmptySubsequences: false)
             guard components.count == 2,
+                  components[0].count == 2, components[1].count == 2,
+                  components.allSatisfy({ $0.utf8.allSatisfy { (48...57).contains($0) } }),
                   let hour = Int(components[0]),
                   let minute = Int(components[1]),
                   (0..<24).contains(hour),
@@ -111,7 +113,7 @@ enum AutoRefreshSchedule {
     static func formattedTimeList(_ triggerMinutes: [Int]) -> String {
         (normalizedTriggerMinutes(triggerMinutes) ?? defaultTriggerMinutes)
             .map { String(format: "%02d:%02d", $0 / 60, $0 % 60) }
-            .joined(separator: "、")
+            .joined(separator: ", ")
     }
 
     static func latestWindow(

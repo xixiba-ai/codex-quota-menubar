@@ -10,15 +10,15 @@ enum CodexCLIRefreshTriggerError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .executableNotFound:
-            "未找到 Codex CLI；请先安装并登录 Codex"
+            L10n.tr("未找到 Codex CLI；请先安装并登录 Codex")
         case .launchFailed(let message):
-            "无法启动 Codex CLI：\(message)"
+            L10n.tr("无法启动 Codex CLI：\(message)")
         case .failed(let exitCode, let message):
-            "Codex CLI 调用失败（退出码 \(exitCode)）：\(message)"
+            L10n.tr("Codex CLI 调用失败（退出码 \(exitCode)）：\(message)")
         case .usageLimit(_, let message):
-            "Codex 使用额度已用尽：\(message)"
+            L10n.tr("Codex 使用额度已用尽：\(message)")
         case .timedOut:
-            "Codex CLI 调用超时"
+            L10n.tr("Codex CLI 调用超时")
         }
     }
 }
@@ -109,7 +109,7 @@ struct CodexCLIRefreshTrigger: CodexRefreshTriggering {
                 let errorText = String(
                     data: errorPipe.fileHandleForReading.readDataToEndOfFile(),
                     encoding: .utf8
-                )?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "未知错误"
+                )?.trimmingCharacters(in: .whitespacesAndNewlines) ?? L10n.tr("未知错误")
                 if completedProcess.terminationStatus == 0 {
                     gate.finish(.success(()))
                 } else {

@@ -121,7 +121,8 @@ final class ResetForecastStore: ObservableObject {
     @Published private(set) var isEnabled: Bool
     @Published private(set) var forecast: ResetForecast?
     @Published private(set) var lastAttemptAt: Date?
-    @Published private(set) var errorMessage: String?
+    @Published private var didFail = false
+    var errorMessage: String? { didFail ? L10n.tr("预测更新失败") : nil }
 
     private let fetcher: any ResetForecastFetching
     private let defaults: UserDefaults
@@ -142,7 +143,7 @@ final class ResetForecastStore: ObservableObject {
             Task { await refreshForActiveQuotaRead() }
         } else {
             fetcher.cancel()
-            errorMessage = nil
+            didFail = false
         }
     }
 
@@ -160,12 +161,12 @@ final class ResetForecastStore: ObservableObject {
             let result = try await fetcher.fetch()
             guard isEnabled, generation == requestGeneration else { return }
             forecast = result
-            errorMessage = nil
+            didFail = false
         } catch is CancellationError {
             // Disabling intentionally cancels an active request.
         } catch {
             guard isEnabled, generation == requestGeneration else { return }
-            errorMessage = "预测更新失败"
+            didFail = true
         }
     }
 }

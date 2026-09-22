@@ -10,11 +10,11 @@ struct CodexSession: Identifiable, Hashable {
 
         var label: String {
             switch self {
-            case .notLoaded: "已保存"
-            case .idle: "空闲"
-            case .active(let flags): flags.isEmpty ? "进行中" : "等待处理"
-            case .systemError: "异常"
-            case .unknown: "未知"
+            case .notLoaded: L10n.tr("已保存")
+            case .idle: L10n.tr("空闲")
+            case .active(let flags): flags.isEmpty ? L10n.tr("进行中") : L10n.tr("等待处理")
+            case .systemError: L10n.tr("异常")
+            case .unknown: L10n.tr("未知")
             }
         }
 

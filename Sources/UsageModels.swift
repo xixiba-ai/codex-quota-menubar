@@ -24,6 +24,15 @@ struct CodexUsageSnapshot: Codable, Equatable {
     let updatedAt: Date
     var sourceDescription: String
 
+    var localizedSourceDescription: String {
+        switch sourceDescription {
+        case "Sample data": L10n.tr("示例数据")
+        case "Configured data source": L10n.tr("已配置的数据源")
+        case "Codex CLI (local, live)": L10n.tr("Codex CLI（本机实时）")
+        default: sourceDescription
+        }
+    }
+
     /// Some plans expose only a weekly (or longer) window. In that case the API returns it
     /// as `primary`, despite it being the long-term quota from a user's perspective.
     var hasOnlyLongTermWindow: Bool {
@@ -34,7 +43,7 @@ struct CodexUsageSnapshot: Codable, Equatable {
         shortTerm: UsageWindow(remainingPercent: 65, resetsAt: .now.addingTimeInterval(17 * 60 + 56), windowDurationMinutes: 300),
         longTerm: UsageWindow(remainingPercent: 55, resetsAt: Calendar.current.date(byAdding: .day, value: 3, to: .now)!, windowDurationMinutes: 10_080),
         updatedAt: .now,
-        sourceDescription: "示例数据"
+        sourceDescription: "Sample data"
     )
 }
 
