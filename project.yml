@@ -1,0 +1,46 @@
+name: CodexQuotaMenuBar
+
+options:
+  minimumXcodeGenVersion: 2.38.0
+  deploymentTarget:
+    macOS: "13.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    PRODUCT_NAME: Codex Quota
+    PRODUCT_BUNDLE_IDENTIFIER: com.example.CodexQuotaMenuBar
+    MARKETING_VERSION: 1.0.0
+    CURRENT_PROJECT_VERSION: 1
+    SWIFT_VERSION: 5.0
+    GENERATE_INFOPLIST_FILE: YES
+    INFOPLIST_KEY_CFBundleDisplayName: Codex Quota
+    INFOPLIST_KEY_LSUIElement: YES
+    ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+
+targets:
+  CodexQuotaMenuBar:
+    type: application
+    platform: macOS
+    deploymentTarget: "13.0"
+    sources:
+      - path: Sources
+      - path: Resources
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.CodexQuotaMenuBar
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGNING_ALLOWED: NO
+    scheme:
+      testTargets:
+        - CodexQuotaMenuBarTests
+
+  CodexQuotaMenuBarTests:
+    type: bundle.unit-test
+    platform: macOS
+    deploymentTarget: "13.0"
+    sources:
+      - path: Tests
+    dependencies:
+      - target: CodexQuotaMenuBar

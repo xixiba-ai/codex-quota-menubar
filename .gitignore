@@ -1,0 +1,26 @@
+# macOS Finder metadata
+.DS_Store
+
+# Xcode user and derived files
+DerivedData/
+build/
+*.xcuserstate
+xcuserdata/
+
+# Local build and release artifacts. Publish release DMGs through GitHub Releases.
+distribution/
+
+# Local credentials, agent settings, logs, and private history backups
+.env
+.env.*
+.codex/
+.agents/
+auth.json
+*.pem
+*.key
+*.p12
+*.pfx
+*.log
+*.jsonl
+*.xcresult/
+*.bundle
