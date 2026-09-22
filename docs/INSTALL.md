@@ -1,10 +1,14 @@
 # 安装 Codex Quota 预览版
 
+[English](INSTALL.en.md) | **简体中文**
+
 ## 下载与要求
 
 从 [GitHub Releases](https://github.com/xixiba-ai/codex-quota-menubar/releases) 下载 `Codex-Quota-版本号-universal.dmg`。通用安装包同时包含 Apple Silicon 和 Intel 两种架构，最低要求 macOS 13。
 
 使用额度功能前，请先在本机安装并登录 Codex CLI。安装包不包含 Codex CLI，也不包含任何登录凭据。首次公开预览版尚未在所有支持的系统和硬件上验证。
+
+**当前应用界面为简体中文。** 文档提供中英文版本。
 
 ## 安装
 

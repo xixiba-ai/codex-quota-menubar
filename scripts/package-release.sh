@@ -48,6 +48,7 @@ ditto --noextattr --norsrc "$WORK_DIR/DerivedData/Build/Products/Release/Codex Q
 cp "$WORK_DIR/source/LICENSE" "$APP/Contents/Resources/LICENSE.txt"
 cp "$WORK_DIR/source/LICENSE" "$WORK_DIR/staging/LICENSE.txt"
 cp "$WORK_DIR/source/docs/INSTALL.md" "$WORK_DIR/staging/INSTALL.md"
+cp "$WORK_DIR/source/docs/INSTALL.en.md" "$WORK_DIR/staging/INSTALL.en.md"
 ln -s /Applications "$WORK_DIR/staging/Applications"
 cat > "$WORK_DIR/staging/BUILD-INFO.txt" <<EOF
 Codex Quota $VERSION
@@ -103,11 +104,11 @@ DMG_NAME="Codex-Quota-$VERSION-universal.dmg"
 hdiutil create -fs HFS+ -format UDZO -volname 'Codex Quota' \
   -srcfolder "$WORK_DIR/staging" "$WORK_DIR/artifacts/$DMG_NAME"
 hdiutil verify "$WORK_DIR/artifacts/$DMG_NAME"
-cp "$WORK_DIR/staging/INSTALL.md" "$WORK_DIR/staging/LICENSE.txt" \
+cp "$WORK_DIR/staging/INSTALL.md" "$WORK_DIR/staging/INSTALL.en.md" "$WORK_DIR/staging/LICENSE.txt" \
   "$WORK_DIR/staging/BUILD-INFO.txt" "$WORK_DIR/artifacts/"
 (
   cd "$WORK_DIR/artifacts"
-  shasum -a 256 "$DMG_NAME" INSTALL.md LICENSE.txt BUILD-INFO.txt > SHA256SUMS.txt
+  shasum -a 256 "$DMG_NAME" INSTALL.md INSTALL.en.md LICENSE.txt BUILD-INFO.txt > SHA256SUMS.txt
 )
 mkdir -p "${OUTPUT:h}"
 mv "$WORK_DIR/artifacts" "$OUTPUT"

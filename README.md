@@ -1,68 +1,70 @@
 # Codex Quota Menu Bar
 
-一个 macOS 13+ 的原生 SwiftUI 菜单栏工具。它没有 Dock 图标和常驻主窗口；菜单栏显示剩余额度和重置倒计时，点击可查看详情。
+**English** | [简体中文](README.zh-CN.md)
 
-这是社区维护的非官方项目，与 OpenAI 无隶属关系。
+A native menu bar app for macOS 13+ that shows your remaining Codex quota and reset times. It has no Dock icon or persistent main window. Click its menu bar item for details.
 
-## 使用前准备
+This is an unofficial community project and is not affiliated with OpenAI.
 
-- macOS 13 或更新版本。
-- 已安装并登录的 Codex CLI，用于读取本机账号额度。
-- 从源码构建需要完整的 Xcode；仓库已包含 Xcode 工程，XcodeGen 仅在重新生成工程时需要。
+**Language:** the documentation is available in English and Simplified Chinese. The current app interface is in Simplified Chinese; English labels below explain the corresponding menu items.
 
-## 下载安装
+## Requirements
 
-从 [GitHub Releases](https://github.com/xixiba-ai/codex-quota-menubar/releases) 下载通用 DMG，支持 Apple Silicon 和 Intel Mac。打开磁盘映像后，将 **Codex Quota.app** 拖入 **Applications** 文件夹。
+- macOS 13 or later.
+- Codex CLI installed and signed in on the same Mac.
+- Full Xcode to build from source. The Xcode project is included; XcodeGen is only needed to regenerate it.
 
-当前安装包为预览版，**没有 Apple Developer ID 签名、未经过 Apple 公证**，首次打开可能被 macOS 拦截。安装步骤、系统提示说明和 SHA-256 校验方法见 [安装说明](docs/INSTALL.md)。首次预览版尚未在所有支持的系统和硬件上验证。
+## Download and install
 
-项目结构、启动方式、部署注意事项和维护清单见 [交接文档](docs/HANDOFF.md)。日常验证可直接执行 `./scripts/verify.sh`。
+Download the universal DMG from [GitHub Releases](https://github.com/xixiba-ai/codex-quota-menubar/releases). It includes Apple Silicon and Intel builds. Open the disk image and drag **Codex Quota.app** into **Applications**.
 
-## 新手引导与帮助
+The current installer is a preview: **it has no Apple Developer ID signature and has not been notarized by Apple**. macOS may block the first launch. See the [installation guide](docs/INSTALL.en.md) for installation steps, system prompts, and SHA-256 verification. The first preview has not been tested on every supported macOS version and hardware configuration.
 
-首次启动会自动显示帮助窗口，关闭后不再自动弹出；可随时从菜单栏的“新手引导与帮助…”重新打开。
+See the [maintenance guide](docs/HANDOFF.en.md) for project structure, local deployment, and maintenance checks. Run `./scripts/verify.sh` for routine verification.
 
-- **快速上手**：连接状态与重试、菜单栏数值示例、默认设置说明。
-- **功能说明**：额度读取与计划请求的区别、第三方重置概率、会话搜索与清理，可直接打开会话列表。
-- **常见问题**：CLI 连接、额度显示、自动刷新、会话查找与帮助入口。
+## Getting started and help
 
-帮助窗口中的“检查连接”只刷新额度数据。计划执行的“自动刷新额度”会发起实际 Codex 请求，可能消耗少量额度，不保证重置额度。
+A help window appears automatically on first launch. After that, open it from **新手引导与帮助…** (Getting Started & Help) in the menu bar menu.
 
-## 构建
+- **快速上手** (Getting started): connection status and retry, a menu bar example, and default settings.
+- **功能说明** (Features): quota reads versus scheduled requests, third-party reset forecasts, and session search and cleanup.
+- **常见问题** (FAQ): CLI connectivity, quota display, scheduled activity, session lookup, and reopening help.
 
-该项目使用 XcodeGen 描述工程。若已安装 XcodeGen，执行 `xcodegen generate` 后在 Xcode 中打开 `CodexQuotaMenuBar.xcodeproj`，或执行：
+**检查连接** (Check connection) refreshes the displayed quota without starting a conversation task. Scheduled **自动刷新额度** sends real Codex requests, may consume a small amount of quota, and does not guarantee a quota reset.
+
+## Build from source
+
+The project uses XcodeGen for its project definition. If you have XcodeGen installed, run `xcodegen generate` before opening `CodexQuotaMenuBar.xcodeproj`. You can also use the included project directly:
 
 ```sh
 ./scripts/verify.sh
 
-# 生成发布构建
+# Build the release configuration
 xcodebuild -project CodexQuotaMenuBar.xcodeproj -scheme CodexQuotaMenuBar -configuration Release build
 ```
 
-## 数据源
+## Data sources and sessions
 
-默认直接连接本机已登录的 Codex CLI（`codex app-server --stdio`），读取当前额度并在额度变化时更新菜单栏。它不会读取或保存 Codex/ChatGPT 登录凭证；认证仍由 Codex CLI 自身处理。
+By default, the app connects to your locally authenticated Codex CLI through `codex app-server --stdio`, reads quota, and updates the menu bar when quota changes. The app does not read or store Codex/ChatGPT login credentials; the CLI handles authentication.
 
-菜单中的“定位 Codex 会话…”会读取本机已保存的 CLI 和 VS Code 会话。可按标题、首条任务、项目目录或 Session ID 搜索，并可筛选项目与最近 7 天；选中会话后可复制 `codex resume` 续接命令，或在 Finder 打开该会话的项目目录。读取列表不会恢复、中断或修改会话本身。
+**定位 Codex 会话…** (Find Codex sessions) lists locally saved CLI and VS Code sessions. Search by title, initial task, project directory, or session ID, and filter by project or the last seven days. Select a session to copy a `codex resume` command or open its project in Finder. Listing sessions does not resume, interrupt, or modify them.
 
-会话面板还支持单条“终止并删除会话”，以及按最后活跃时间批量删除会话（默认 7 天前）。删除会永久移除会话记录及其派生会话，不能恢复；批量删除会自动跳过仍在运行的会话，并在操作前显示影响数量并要求确认。
+The session panel also supports **终止并删除会话** (Stop and delete session) and bulk deletion by last activity, defaulting to sessions older than seven days. **Deletion permanently removes the session and its derived sessions and cannot be undone.** Bulk cleanup skips active sessions and asks for confirmation with the affected count.
 
-该本地 app-server 协议目前标为 experimental；Codex CLI 更新后，应用可能需要随之适配。若本机 CLI 不在默认位置，可配置路径：
+The local app-server protocol is experimental. Codex CLI updates may require changes to this app. If your CLI is installed outside the default locations, configure its path:
 
 ```sh
 defaults write com.example.CodexQuotaMenuBar codexExecutablePath "$HOME/.local/bin/codex"
 ```
 
-如需改用你自己的 HTTPS 额度服务，配置 `usageEndpoint` 后会优先使用远程数据源：
-
-配置键：
+To use your own authorized HTTPS quota service, set `usageEndpoint`. A configured endpoint takes precedence over the local CLI:
 
 ```sh
 defaults write com.example.CodexQuotaMenuBar usageEndpoint 'https://your-authorized-service.example/usage'
 defaults write com.example.CodexQuotaMenuBar usageEndpointBearerToken 'YOUR_TOKEN'
 ```
 
-端点需要返回 ISO-8601 日期：
+The endpoint must return JSON with ISO-8601 dates:
 
 ```json
 {
@@ -73,22 +75,24 @@ defaults write com.example.CodexQuotaMenuBar usageEndpointBearerToken 'YOUR_TOKE
 }
 ```
 
-移除 `usageEndpoint` 会恢复本地 Codex CLI 数据源。应用仍每 60 秒主动校验一次，也会在本地 CLI 推送额度变动时立即更新；详情面板支持手动刷新。
+Remove `usageEndpoint` to return to the local CLI data source. The app checks quota every 60 seconds and also reacts to CLI quota updates. **立即刷新** (Refresh now) performs a manual check.
 
-## 第三方重置概率
+## Third-party reset forecasts
 
-菜单中的“重置概率预测”是独立开关，默认关闭。开启后会立即请求一次 [willcodexquotareset.com](https://www.willcodexquotareset.com/)，并在每次主动额度刷新时同步更新，包括手动刷新、每 60 秒校验，以及计划触发和额度重置重试。本机 CLI 的被动额度推送不会产生额外请求。
+**重置概率预测** (Reset forecast) is a separate option, off by default. Enabling it immediately requests a forecast from [willcodexquotareset.com](https://www.willcodexquotareset.com/). Forecasts then refresh with active quota checks, including manual refresh, the 60-second check, scheduled activity, and quota-reset retries. Passive CLI quota notifications do not cause extra forecast requests.
 
-菜单显示服务返回的 48 小时重置概率、数据更新时间和第三方来源。预测请求不携带 Codex 登录凭据，失败也不会影响额度读取；如果已有成功结果，临时失败时会保留并标记为可能过期。关闭开关会取消进行中的预测请求。
+The menu shows the service's reset probability over a 48-hour horizon, its update time, and the third-party source. Requests do not include Codex login credentials. Forecast failures do not affect quota reads; if a previous result exists, it is kept and marked as potentially stale. Disabling the option cancels an in-flight forecast request. These forecasts are estimates, not official reset commitments.
 
-## 自动刷新额度
+## Scheduled Codex requests
 
-状态栏菜单中的“自动刷新额度”可直接开启或关闭此功能。默认在每天 05:30、10:30、15:30 和 20:30 发起一次最小化的本机 Codex CLI 请求；它与原有的额度读取进程相互独立，不会改变额度读取的 60 秒刷新频率。点击“修改触发时间…”可用 24 小时制设置一个或多个时间，例如 `06:00、12:30、18:00`；保存后会立即重新安排下一次触发。
+**自动刷新额度** toggles scheduled activity. The feature is off by default. Its default schedule sends a minimal local Codex CLI request at **05:30, 10:30, 15:30, and 20:30**, using local time. This runs independently from the quota reader and does not change its 60-second refresh interval.
 
-菜单同时显示当前状态、最近一次触发时间及下一次计划触发时间。应用会保存开关、最近结果和已处理的时间窗口；如果电脑休眠或关机后错过计划点，重新启动或唤醒时只对当前最新的遗漏窗口补偿一次，不会重复执行同一窗口。
+Choose **修改触发时间…** (Edit trigger times) to enter one or more 24-hour times, such as `06:00, 12:30, 18:00`. Saving immediately reschedules the next trigger.
 
-调度检查、触发原因、结果和错误会写入 macOS Unified Logging（子系统为 `com.example.CodexQuotaMenuBar`，分类为 `AutoRefresh`），可在“控制台”中查看。
+The menu shows the current state, last trigger, and next scheduled trigger. The app persists its setting, latest result, and handled time windows. On launch or wake after a missed schedule, it compensates for only the most recent missed window and does not repeat a handled window.
 
-## 许可证
+Scheduling checks, trigger reasons, results, and errors go to macOS Unified Logging under subsystem `com.example.CodexQuotaMenuBar`, category `AutoRefresh`. Error details are marked private.
 
-采用 [MIT License](LICENSE)。源码和安装包均附带许可证。
+## License
+
+[MIT License](LICENSE). The source and installer include the license.

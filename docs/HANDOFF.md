@@ -1,5 +1,7 @@
 # Codex Quota Menu Bar — 交接文档
 
+[English](HANDOFF.en.md) | **简体中文**
+
 ## 先做这三件事
 
 ```sh
@@ -87,7 +89,9 @@ open "/Applications/Codex Quota.app"
 
 脚本要求完整 Xcode；需要选择特定 Xcode 时，通过 `DEVELOPER_DIR` 指定。它导出当前提交，在独立临时目录构建 arm64 / x86_64 Release，校验版本与包内容，加入 MIT 许可证和安装说明，并生成 DMG 和 SHA-256 校验文件。已有同版本输出时会停止，避免覆盖。
 
-产物位于 `distribution/releases/版本号/`；构建日志与暂存目录仅保留在本地临时目录。发布前仍应挂载 DMG、检查应用签名和架构、进行启动检查及隐私复核。只将该版本目录中的发行附件上传到对应源码提交的 GitHub Release，并勾选预览版。
+产物位于 `distribution/releases/版本号/`；构建日志与暂存目录仅保留在本地临时目录。后续新安装包会同时附带 `INSTALL.md` 和 `INSTALL.en.md`。发布前仍应挂载 DMG、检查应用签名和架构、进行启动检查及隐私复核。只将该版本目录中的发行附件上传到对应源码提交的 GitHub Release，并勾选预览版。
+
+已有的 `v1.0.0-preview.1` 安装包附带最初的中文安装说明。文档翻译不会改变已发布二进制及校验值，当前英文安装说明可在线查看。
 
 ### 修改数据源
 
