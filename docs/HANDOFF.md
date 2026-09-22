@@ -25,7 +25,8 @@ open "/private/tmp/CodexQuotaMenuBarDerivedData/Build/Products/Debug/Codex Quota
 | `Sources/ResetForecast.swift` | 可选第三方重置概率请求、校验、合并并发与独立持久化开关。 |
 | `Tests/AutoRefreshSchedulerTests.swift` | 排程、开关、补偿、自定义时间与旧配置兼容测试。 |
 | `Resources/` | App Icon 与状态栏图标资源。 |
-| `distribution/` | 已发布的 DMG；`staging/` 是可再生成的打包临时目录。 |
+| `distribution/releases/` | 按版本保存的 DMG、安装说明、许可证和校验文件；不进入 Git。 |
+| `scripts/package-release.sh` | 从已提交源码在独立目录构建、检查并制作预览版 DMG。 |
 | `project.yml` | XcodeGen 工程描述；修改目标、文件归属或构建设置时优先改这里。 |
 | `CodexQuotaMenuBar.xcodeproj/` | 已生成的 Xcode 工程。修改 `project.yml` 后执行 `xcodegen generate` 更新。 |
 
@@ -74,7 +75,19 @@ ditto "/private/tmp/CodexQuotaMenuBarDerivedData/Build/Products/Debug/Codex Quot
 open "/Applications/Codex Quota.app"
 ```
 
-工作区的 `distribution/staging/Codex Quota.app` 也可能被 LaunchServices 发现。它与 `/Applications/Codex Quota.app` 共用 bundle ID；调试或交付前应同步更新它，且启动时使用明确的绝对路径，不要只按 bundle ID 或应用名查找。
+旧工作区的 `distribution/staging/Codex Quota.app` 也可能被 LaunchServices 发现。它与 `/Applications/Codex Quota.app` 共用 bundle ID；启动时使用明确的绝对路径。正式打包使用下方的隔离流程，不复用旧暂存目录。
+
+### 制作预览版安装包
+
+先完成测试并提交工作区改动，再运行：
+
+```sh
+./scripts/package-release.sh 1.0.0-preview.1 1
+```
+
+脚本要求完整 Xcode；需要选择特定 Xcode 时，通过 `DEVELOPER_DIR` 指定。它导出当前提交，在独立临时目录构建 arm64 / x86_64 Release，校验版本与包内容，加入 MIT 许可证和安装说明，并生成 DMG 和 SHA-256 校验文件。已有同版本输出时会停止，避免覆盖。
+
+产物位于 `distribution/releases/版本号/`；构建日志与暂存目录仅保留在本地临时目录。发布前仍应挂载 DMG、检查应用签名和架构、进行启动检查及隐私复核。只将该版本目录中的发行附件上传到对应源码提交的 GitHub Release，并勾选预览版。
 
 ### 修改数据源
 
@@ -109,5 +122,5 @@ log show --last 1h --predicate 'subsystem == "com.example.CodexQuotaMenuBar" AND
 ## 当前已知边界
 
 - 本机 Codex app-server 协议是 experimental；CLI 升级后如无法读取额度，优先检查 `UsageDataSource.swift` 的协议适配。
-- 工程当前关闭代码签名（见 `project.yml`）；正式分发前需要补充签名、公证和可重复的 DMG 打包流程。
-- `distribution/Codex Quota.dmg` 是现有发布物；它不会随源码构建自动更新，发布前需单独重新制作并验证。
+- 工程当前关闭开发者代码签名（见 `project.yml`）；打包脚本仅添加 ad-hoc 完整性签名。面向正式分发的 Developer ID 签名和 Apple 公证尚未配置。
+- 旧的 `distribution/Codex Quota.dmg` 和 `distribution/staging/` 不属于当前发行流程，不应上传。

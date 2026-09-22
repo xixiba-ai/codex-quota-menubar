@@ -10,7 +10,11 @@
 - 已安装并登录的 Codex CLI，用于读取本机账号额度。
 - 从源码构建需要完整的 Xcode；仓库已包含 Xcode 工程，XcodeGen 仅在重新生成工程时需要。
 
-当前提供源码构建，工程默认关闭代码签名。面向其他用户分发安装包前，需要完成签名、公证和安装验证。
+## 下载安装
+
+从 [GitHub Releases](https://github.com/xixiba-ai/codex-quota-menubar/releases) 下载通用 DMG，支持 Apple Silicon 和 Intel Mac。打开磁盘映像后，将 **Codex Quota.app** 拖入 **Applications** 文件夹。
+
+当前安装包为预览版，**没有 Apple Developer ID 签名、未经过 Apple 公证**，首次打开可能被 macOS 拦截。安装步骤、系统提示说明和 SHA-256 校验方法见 [安装说明](docs/INSTALL.md)。首次预览版尚未在所有支持的系统和硬件上验证。
 
 项目结构、启动方式、部署注意事项和维护清单见 [交接文档](docs/HANDOFF.md)。日常验证可直接执行 `./scripts/verify.sh`。
 
@@ -84,3 +88,7 @@ defaults write com.example.CodexQuotaMenuBar usageEndpointBearerToken 'YOUR_TOKE
 菜单同时显示当前状态、最近一次触发时间及下一次计划触发时间。应用会保存开关、最近结果和已处理的时间窗口；如果电脑休眠或关机后错过计划点，重新启动或唤醒时只对当前最新的遗漏窗口补偿一次，不会重复执行同一窗口。
 
 调度检查、触发原因、结果和错误会写入 macOS Unified Logging（子系统为 `com.example.CodexQuotaMenuBar`，分类为 `AutoRefresh`），可在“控制台”中查看。
+
+## 许可证
+
+采用 [MIT License](LICENSE)。源码和安装包均附带许可证。
