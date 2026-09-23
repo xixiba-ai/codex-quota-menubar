@@ -24,6 +24,7 @@ open "/private/tmp/CodexQuotaMenuBarDerivedData/Build/Products/Debug/Codex Quota
 | `Sources/QuotaHelpView.swift` | 首次启动引导、功能说明、常见问题与连接检查。 |
 | `Sources/AutoRefreshScheduler.swift` | 自动刷新排程、持久化、休眠/时钟变更补偿。 |
 | `Sources/CodexCLIRefreshTrigger.swift` | 计划到点时调用本机 Codex CLI。 |
+| `Sources/CodexTerminalResumeLauncher.swift` | 将选中会话交给终端续接、安全引用 shell 参数及管理私有临时脚本。 |
 | `Sources/ResetForecast.swift` | 可选第三方重置概率请求、校验、合并并发与独立持久化开关。 |
 | `Tests/AutoRefreshSchedulerTests.swift` | 排程、开关、补偿、自定义时间与旧配置兼容测试。 |
 | `Resources/` | App Icon 与状态栏图标资源。 |
@@ -84,12 +85,12 @@ open "/Applications/Codex Quota.app"
 先完成测试并提交工作区改动，再运行：
 
 ```sh
-./scripts/package-release.sh 1.0.0-preview.2 2
+./scripts/package-release.sh 1.0.0-preview.3 3
 ```
 
 脚本要求完整 Xcode；需要选择特定 Xcode 时，通过 `DEVELOPER_DIR` 指定。它导出当前提交，在独立临时目录构建 arm64 / x86_64 Release，校验版本与包内容，加入 MIT 许可证和安装说明，并生成 DMG 和 SHA-256 校验文件。已有同版本输出时会停止，避免覆盖。
 
-产物位于 `distribution/releases/版本号/`；构建日志与暂存目录仅保留在本地临时目录。后续新安装包会同时附带 `INSTALL.md` 和 `INSTALL.en.md`。发布前仍应挂载 DMG、检查应用签名和架构、进行启动检查及隐私复核。只将该版本目录中的发行附件上传到对应源码提交的 GitHub Release，并勾选预览版。
+产物位于 `distribution/releases/版本号/`；构建日志与暂存目录仅保留在本地临时目录。后续新安装包会同时附带 `INSTALL.md` 和 `INSTALL.en.md`。发布前仍应挂载 DMG、检查应用签名和架构、进行启动检查及隐私复核。只将该版本目录中的发行附件上传到对应源码提交的 GitHub Release，并勾选预览版。发布后，用同一份已校验安装包更新本机 `/Applications/Codex Quota.app`，保留旧版备份与现有设置，并检查安装后的构建号和实际运行路径。
 
 已有的 `v1.0.0-preview.1` 安装包附带最初的中文安装说明。文档翻译不会改变已发布二进制及校验值，当前英文安装说明可在线查看。
 
@@ -136,3 +137,9 @@ log show --last 1h --predicate 'subsystem == "com.example.CodexQuotaMenuBar" AND
 应用文案使用 `L10n.tr`。插值内容转为编号占位符，两种语言须保留一致的占位符。不要翻译用户内容或改变已持久化的枚举值。`LocalizationTests` 覆盖资源一致性、插值安全、语言偏好持久化、额度错误和时间输入；测试启动不连接真实 CLI 或恢复调度任务。
 
 触发时间仅接受 `HH:mm` 24 小时制，以英文逗号分隔，可在每个时间前后留空白。中英文显示均使用 `, `。旧计划按数值分钟保存，无需迁移。
+
+## 在终端续接会话
+
+会话面板的“在终端续接”使用与额度读取相同的 Codex 可执行文件定位逻辑。它校验项目目录与可执行文件，生成私有、可执行的 `.command` 文件，通过 `NSWorkspace` 明确交给 `com.apple.Terminal` 打开。脚本会在进入项目目录并执行 `codex resume -- SESSION_ID` 前删除自身，不需要 AppleScript 自动化权限。小型复制按钮保留手动操作入口。
+
+验证时使用注入的打开器或本地虚构 CLI，不要仅为验证按钮而打开真实会话。覆盖空格、引号、中文、shell 特殊字符、以连字符开头的 ID、目录或 CLI 缺失、打开失败与临时文件清理。会话 ID 和项目路径不得混入发行附件或准备公开的诊断材料。

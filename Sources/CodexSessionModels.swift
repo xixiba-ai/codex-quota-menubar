@@ -38,10 +38,6 @@ struct CodexSession: Identifiable, Hashable {
     }
 
     var resumeCommand: String {
-        "cd \(shellQuote(cwd)) && codex resume \(shellQuote(id))"
-    }
-
-    private func shellQuote(_ value: String) -> String {
-        "'\(value.replacingOccurrences(of: "'", with: "'\\\"'\\\"'"))'"
+        "cd \(ShellQuote.quote(cwd)) && codex resume -- \(ShellQuote.quote(id))"
     }
 }

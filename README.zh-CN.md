@@ -47,7 +47,7 @@ xcodebuild -project CodexQuotaMenuBar.xcodeproj -scheme CodexQuotaMenuBar -confi
 
 默认直接连接本机已登录的 Codex CLI（`codex app-server --stdio`），读取当前额度并在额度变化时更新菜单栏。它不会读取或保存 Codex/ChatGPT 登录凭证；认证仍由 Codex CLI 自身处理。
 
-菜单中的“定位 Codex 会话…”会读取本机已保存的 CLI 和 VS Code 会话。可按标题、首条任务、项目目录或 Session ID 搜索，并可筛选项目与最近 7 天；选中会话后可复制 `codex resume` 续接命令，或在 Finder 打开该会话的项目目录。读取列表不会恢复、中断或修改会话本身。
+菜单中的“定位 Codex 会话…”会读取本机已保存的 CLI 和 VS Code 会话。可按标题、首条任务、项目目录或 Session ID 搜索，并可筛选项目与最近 7 天；选中会话后，点击 **在终端续接**，即可打开 macOS“终端”、进入项目目录并运行该会话的 `codex resume`。仍保留 **复制续接命令** 作为备用入口，也可在 Finder 打开项目目录。读取列表或选中会话不会恢复、中断或修改会话；只有点击续接按钮才会启动。
 
 会话面板还支持单条“终止并删除会话”，以及按最后活跃时间批量删除会话（默认 7 天前）。删除会永久移除会话记录及其派生会话，不能恢复；批量删除会自动跳过仍在运行的会话，并在操作前显示影响数量并要求确认。
 

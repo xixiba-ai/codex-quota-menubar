@@ -47,7 +47,7 @@ xcodebuild -project CodexQuotaMenuBar.xcodeproj -scheme CodexQuotaMenuBar -confi
 
 By default, the app connects to your locally authenticated Codex CLI through `codex app-server --stdio`, reads quota, and updates the menu bar when quota changes. The app does not read or store Codex/ChatGPT login credentials; the CLI handles authentication.
 
-**定位 Codex 会话…** (Find Codex sessions) lists locally saved CLI and VS Code sessions. Search by title, initial task, project directory, or session ID, and filter by project or the last seven days. Select a session to copy a `codex resume` command or open its project in Finder. Listing sessions does not resume, interrupt, or modify them.
+**定位 Codex 会话…** (Find Codex sessions) lists locally saved CLI and VS Code sessions. Search by title, initial task, project directory, or session ID, and filter by project or the last seven days. Select a session and choose **Resume in Terminal** to open macOS Terminal, enter the project folder, and run `codex resume` for that session. **Copy Resume Command** remains available as a fallback, and you can still open the project in Finder. Listing or selecting sessions does not resume, interrupt, or modify them; resuming starts only when you click the action.
 
 The session panel also supports **终止并删除会话** (Stop and delete session) and bulk deletion by last activity, defaulting to sessions older than seven days. **Deletion permanently removes the session and its derived sessions and cannot be undone.** Bulk cleanup skips active sessions and asks for confirmation with the affected count.
 

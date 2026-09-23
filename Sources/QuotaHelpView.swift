@@ -159,7 +159,7 @@ struct QuotaHelpView: View {
                     .foregroundStyle(.secondary)
             }
             helpCard("bubble.left.and.bubble.right", title: L10n.tr("定位与整理会话")) {
-                Text(L10n.tr("按标题、任务、项目目录或 Session ID 搜索本机保存的 CLI 和 VS Code 会话。选中后可复制续接命令，在终端执行，或打开项目目录。"))
+                Text(L10n.tr("按标题、任务、项目目录或 Session ID 搜索本机保存的 CLI 和 VS Code 会话。选中后点击“在终端续接”，也可复制命令或打开项目目录。"))
                 Text(L10n.tr("默认只看最近 7 天，找旧会话时可取消筛选。删除会永久移除记录及派生会话；批量清理会跳过仍在运行的会话，并在执行前确认。"))
                     .foregroundStyle(.secondary)
                 Button(L10n.tr("打开会话列表…"), action: openSessions)

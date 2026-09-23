@@ -24,6 +24,7 @@ The verification script runs unit tests. The app targets macOS 13+ and lives in 
 | `Sources/QuotaHelpView.swift` | First-launch help, feature explanations, FAQ, and connection check. |
 | `Sources/AutoRefreshScheduler.swift` | Scheduling, persistence, and wake/clock-change compensation. |
 | `Sources/CodexCLIRefreshTrigger.swift` | Scheduled one-shot Codex CLI requests. |
+| `Sources/CodexTerminalResumeLauncher.swift` | Explicit Terminal launch for a selected session, safe shell arguments, and private temporary scripts. |
 | `Sources/ResetForecast.swift` | Optional third-party forecast requests, validation, coalescing, and settings. |
 | `Tests/AutoRefreshSchedulerTests.swift` | Schedule, toggle, compensation, custom-time, and compatibility tests. |
 | `Resources/` | App and status icons. |
@@ -82,12 +83,12 @@ An old `distribution/staging/Codex Quota.app` may also be discovered by LaunchSe
 Complete verification and commit your changes first, then run:
 
 ```sh
-./scripts/package-release.sh 1.0.0-preview.2 2
+./scripts/package-release.sh 1.0.0-preview.3 3
 ```
 
 Use a new version for a new release. The script requires full Xcode; use `DEVELOPER_DIR` to select a specific installation. It exports the current commit, builds arm64 and x86_64 Release binaries in a separate temporary directory, checks the version and bundle contents, adds the MIT license and installation guides, and creates a DMG and SHA-256 checksums. It stops if output for that version already exists.
 
-Artifacts go to `distribution/releases/VERSION/`. Build logs and staging files remain in the local temporary directory. Subsequent packages include both `INSTALL.md` and `INSTALL.en.md`. Before publishing, mount the DMG, verify its bundle signature and architectures, perform a startup check, and review it for private data. Upload only release attachments from the versioned output directory to a GitHub Release targeting the matching source commit, marked as a prerelease.
+Artifacts go to `distribution/releases/VERSION/`. Build logs and staging files remain in the local temporary directory. Subsequent packages include both `INSTALL.md` and `INSTALL.en.md`. Before publishing, mount the DMG, verify its bundle signature and architectures, perform a startup check, and review it for private data. Upload only release attachments from the versioned output directory to a GitHub Release targeting the matching source commit, marked as a prerelease. After publication, update the local `/Applications/Codex Quota.app` from that same verified installer, retaining a backup and existing preferences; verify the installed build number and running executable path.
 
 The existing `v1.0.0-preview.1` installer contains the original Chinese installation guide. Its published binary and checksums are unchanged by documentation translations; the current English guide is available online.
 
@@ -134,3 +135,9 @@ log show --last 1h --predicate 'subsystem == "com.example.CodexQuotaMenuBar" AND
 Use `L10n.tr` for app-owned text. Interpolated values become numbered placeholders; keep matching placeholders in both resource files. Do not translate user text or change persisted enum values. `LocalizationTests` checks resource parity, placeholder safety, language persistence, quota errors, and schedule input. Test launches skip live CLI and scheduler startup.
 
 Schedule input accepts only `HH:mm` 24-hour times separated by ASCII commas, with optional surrounding whitespace. Formatting always uses `, ` in both languages. Existing schedules store numeric minutes, so no migration is needed.
+
+## Resume a session in Terminal
+
+The session panel's **Resume in Terminal** action uses the same Codex executable resolver as the quota reader. It validates the project directory and executable, prepares a private executable `.command` file, and opens it explicitly with `com.apple.Terminal` through `NSWorkspace`. The script removes itself before changing directory and executing `codex resume -- SESSION_ID`. No AppleScript automation permission is needed. The compact copy button remains available for manual use.
+
+Test launch behavior with an injected opener or a local fake CLI; never use a real session merely to verify the button. Cover spaces, quotes, Unicode, shell metacharacters, leading-dash IDs, missing folders/CLI, launch failures, and temporary-file cleanup. Session identifiers and project paths must never be copied into release artifacts or diagnostics intended for publication.

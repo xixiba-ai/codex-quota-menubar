@@ -25,6 +25,8 @@
 		A10000000000000000000019 /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000019; };
 		A10000000000000000000020 /* LocalizationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000020; };
 		A10000000000000000000021 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000005; };
+		A10000000000000000000022 /* CodexTerminalResumeLauncher.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000023 /* CodexTerminalResumeLauncher.swift */; };
+		A10000000000000000000023 /* CodexTerminalResumeLauncherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000024 /* CodexTerminalResumeLauncherTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -54,6 +56,8 @@
 		A20000000000000000000020 /* LocalizationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizationTests.swift; sourceTree = "<group>"; };
 		A20000000000000000000021 = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "en"; path = "Resources/en.lproj/Localizable.strings"; sourceTree = "<group>"; };
 		A20000000000000000000022 = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "Resources/zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
+		A20000000000000000000023 /* CodexTerminalResumeLauncher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexTerminalResumeLauncher.swift; sourceTree = "<group>"; };
+		A20000000000000000000024 /* CodexTerminalResumeLauncherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexTerminalResumeLauncherTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXVariantGroup section */
@@ -62,9 +66,9 @@
 
 /* Begin PBXGroup section */
 		A30000000000000000000001 = {isa = PBXGroup; children = (A30000000000000000000005, A30000000000000000000002 /* Sources */, A30000000000000000000004 /* Tests */, A20000000000000000000007 /* Assets.xcassets */, A30000000000000000000003 /* Products */); sourceTree = "<group>"; };
-		A30000000000000000000002 /* Sources */ = {isa = PBXGroup; children = (A20000000000000000000019, A20000000000000000000001 /* CodexQuotaMenuBarApp.swift */, A20000000000000000000002 /* UsageModels.swift */, A20000000000000000000003 /* UsageDataSource.swift */, A20000000000000000000004 /* QuotaStore.swift */, A20000000000000000000005 /* QuotaViews.swift */, A20000000000000000000008 /* AutoRefreshScheduler.swift */, A20000000000000000000009 /* CodexCLIRefreshTrigger.swift */, A20000000000000000000012 /* CodexSessionModels.swift */, A20000000000000000000013 /* CodexSessionDataSource.swift */, A20000000000000000000014 /* SessionStore.swift */, A20000000000000000000015 /* SessionBrowserView.swift */, A20000000000000000000016 /* ResetForecast.swift */, A20000000000000000000018 /* QuotaHelpView.swift */); path = Sources; sourceTree = "<group>"; };
+		A30000000000000000000002 /* Sources */ = {isa = PBXGroup; children = (A20000000000000000000019, A20000000000000000000001 /* CodexQuotaMenuBarApp.swift */, A20000000000000000000002 /* UsageModels.swift */, A20000000000000000000003 /* UsageDataSource.swift */, A20000000000000000000004 /* QuotaStore.swift */, A20000000000000000000005 /* QuotaViews.swift */, A20000000000000000000008 /* AutoRefreshScheduler.swift */, A20000000000000000000009 /* CodexCLIRefreshTrigger.swift */, A20000000000000000000023 /* CodexTerminalResumeLauncher.swift */, A20000000000000000000012 /* CodexSessionModels.swift */, A20000000000000000000013 /* CodexSessionDataSource.swift */, A20000000000000000000014 /* SessionStore.swift */, A20000000000000000000015 /* SessionBrowserView.swift */, A20000000000000000000016 /* ResetForecast.swift */, A20000000000000000000018 /* QuotaHelpView.swift */); path = Sources; sourceTree = "<group>"; };
 		A30000000000000000000003 /* Products */ = {isa = PBXGroup; children = (A20000000000000000000006 /* Codex Quota.app */, A20000000000000000000011 /* CodexQuotaMenuBarTests.xctest */); name = Products; sourceTree = "<group>"; };
-		A30000000000000000000004 /* Tests */ = {isa = PBXGroup; children = (A20000000000000000000020, A20000000000000000000010 /* AutoRefreshSchedulerTests.swift */, A20000000000000000000017 /* ResetForecastTests.swift */); path = Tests; sourceTree = "<group>"; };
+		A30000000000000000000004 /* Tests */ = {isa = PBXGroup; children = (A20000000000000000000020, A20000000000000000000010 /* AutoRefreshSchedulerTests.swift */, A20000000000000000000017 /* ResetForecastTests.swift */, A20000000000000000000024 /* CodexTerminalResumeLauncherTests.swift */); path = Tests; sourceTree = "<group>"; };
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -85,8 +89,8 @@
 /* End PBXTargetDependency section */
 
 /* Begin PBXSourcesBuildPhase section */
-		A60000000000000000000001 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000019, A10000000000000000000001 /* CodexQuotaMenuBarApp.swift in Sources */, A10000000000000000000002 /* UsageModels.swift in Sources */, A10000000000000000000003 /* UsageDataSource.swift in Sources */, A10000000000000000000004 /* QuotaStore.swift in Sources */, A10000000000000000000005 /* QuotaViews.swift in Sources */, A10000000000000000000007 /* AutoRefreshScheduler.swift in Sources */, A10000000000000000000008 /* CodexCLIRefreshTrigger.swift in Sources */, A10000000000000000000010 /* CodexSessionModels.swift in Sources */, A10000000000000000000011 /* CodexSessionDataSource.swift in Sources */, A10000000000000000000012 /* SessionStore.swift in Sources */, A10000000000000000000013 /* SessionBrowserView.swift in Sources */, A10000000000000000000014 /* ResetForecast.swift in Sources */, A10000000000000000000016 /* QuotaHelpView.swift in Sources */); runOnlyForDeploymentPostprocessing = 0; };
-		A60000000000000000000004 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000020, A10000000000000000000009 /* AutoRefreshSchedulerTests.swift in Sources */, A10000000000000000000015 /* ResetForecastTests.swift in Sources */); runOnlyForDeploymentPostprocessing = 0; };
+		A60000000000000000000001 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000019, A10000000000000000000001 /* CodexQuotaMenuBarApp.swift in Sources */, A10000000000000000000002 /* UsageModels.swift in Sources */, A10000000000000000000003 /* UsageDataSource.swift in Sources */, A10000000000000000000004 /* QuotaStore.swift in Sources */, A10000000000000000000005 /* QuotaViews.swift in Sources */, A10000000000000000000007 /* AutoRefreshScheduler.swift in Sources */, A10000000000000000000008 /* CodexCLIRefreshTrigger.swift in Sources */, A10000000000000000000022 /* CodexTerminalResumeLauncher.swift in Sources */, A10000000000000000000010 /* CodexSessionModels.swift in Sources */, A10000000000000000000011 /* CodexSessionDataSource.swift in Sources */, A10000000000000000000012 /* SessionStore.swift in Sources */, A10000000000000000000013 /* SessionBrowserView.swift in Sources */, A10000000000000000000014 /* ResetForecast.swift in Sources */, A10000000000000000000016 /* QuotaHelpView.swift in Sources */); runOnlyForDeploymentPostprocessing = 0; };
+		A60000000000000000000004 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000020, A10000000000000000000009 /* AutoRefreshSchedulerTests.swift in Sources */, A10000000000000000000015 /* ResetForecastTests.swift in Sources */, A10000000000000000000023 /* CodexTerminalResumeLauncherTests.swift in Sources */); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXFrameworksBuildPhase section */

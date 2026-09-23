@@ -9,6 +9,8 @@ struct SessionBrowserView: View {
     @State private var recentOnly = true
     @State private var selectedSession: CodexSession?
     @State private var copied = false
+    @State private var resumeError: String?
+    @State private var isLaunchingResume = false
     @State private var cleanupDays = 7
     @State private var deletionRequest: DeletionRequest?
 
@@ -112,7 +114,17 @@ struct SessionBrowserView: View {
             .frame(minHeight: 260)
 
             if let session = selectedSession {
-                SessionDetail(session: session, copied: copied) {
+                SessionDetail(session: session, copied: copied, isLaunchingResume: isLaunchingResume) {
+                    isLaunchingResume = true
+                    CodexTerminalResumeLauncher().launch(session) { error in
+                        DispatchQueue.main.async {
+                            isLaunchingResume = false
+                            if selectedSession?.id == session.id {
+                                resumeError = error?.localizedDescription
+                            }
+                        }
+                    }
+                } copyCommand: {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(session.resumeCommand, forType: .string)
                     copied = true
@@ -121,8 +133,16 @@ struct SessionBrowserView: View {
                 } deleteSession: {
                     deletionRequest = .single(session)
                 }
+                .alert(L10n.tr("无法续接会话"), isPresented: Binding(
+                    get: { resumeError != nil },
+                    set: { if !$0 { resumeError = nil } }
+                )) {
+                    Button(L10n.tr("好")) { resumeError = nil }
+                } message: {
+                    Text(resumeError ?? "")
+                }
             } else {
-                Text(L10n.tr("选择一个会话以复制续接命令或打开对应项目。"))
+                Text(L10n.tr("选择一个会话以在终端续接，或打开对应项目。"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -132,7 +152,10 @@ struct SessionBrowserView: View {
         .padding(16)
         .frame(width: 700, height: 620)
         .task { await store.refresh() }
-        .onChange(of: selectedSession) { _ in copied = false }
+        .onChange(of: selectedSession) { _ in
+            copied = false
+            resumeError = nil
+        }
         .alert(item: $deletionRequest) { request in
             Alert(
                 title: Text(request.title),
@@ -188,6 +211,8 @@ private struct SessionDetail: View {
     @ObservedObject private var language = AppLanguageStore.shared
     let session: CodexSession
     let copied: Bool
+    let isLaunchingResume: Bool
+    let resume: () -> Void
     let copyCommand: () -> Void
     let openProject: () -> Void
     let deleteSession: () -> Void
@@ -198,11 +223,18 @@ private struct SessionDetail: View {
             Text(session.displayTitle).font(.subheadline.weight(.semibold)).lineLimit(1)
             Text(session.id).font(.caption.monospaced()).foregroundStyle(.secondary).textSelection(.enabled)
             HStack {
-                Button(copied ? L10n.tr("已复制续接命令") : L10n.tr("复制续接命令"), action: copyCommand)
+                Button(L10n.tr("在终端续接"), action: resume)
+                    .buttonStyle(.borderedProminent)
+                    .disabled(isLaunchingResume)
+                Button(action: copyCommand) {
+                    Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                }
+                .help(copied ? L10n.tr("已复制续接命令") : L10n.tr("复制续接命令"))
+                .accessibilityLabel(copied ? L10n.tr("已复制续接命令") : L10n.tr("复制续接命令"))
                 Button(L10n.tr("打开项目目录"), action: openProject)
                 Button(session.status.isActive ? L10n.tr("终止并删除会话…") : L10n.tr("删除会话…"), role: .destructive, action: deleteSession)
             }
-            Text(L10n.tr("在终端粘贴后即可继续会话"))
+            Text(L10n.tr("在终端打开所选会话；复制按钮可手动运行命令。"))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
