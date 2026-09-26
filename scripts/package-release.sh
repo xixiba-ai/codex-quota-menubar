@@ -38,7 +38,7 @@ xcodebuild \
   "MARKETING_VERSION=$APP_VERSION" "CURRENT_PROJECT_VERSION=$BUILD_NUMBER" \
   "INFOPLIST_KEY_CFBundleShortVersionString=$APP_VERSION" \
   "INFOPLIST_KEY_CFBundleVersion=$BUILD_NUMBER" \
-  "INFOPLIST_KEY_CodexQuotaReleaseVersion=$VERSION" \
+  "CODEX_QUOTA_RELEASE_VERSION=$VERSION" \
   build > "$WORK_DIR/build.log" 2>&1 || {
     print -u2 "Build failed. See $WORK_DIR/build.log"
     exit 1
