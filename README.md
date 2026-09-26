@@ -8,6 +8,16 @@ This is an unofficial community project and is not affiliated with OpenAI.
 
 **Languages:** the app and documentation support English and Simplified Chinese. The app uses the first supported language in your system language preferences by default, falling back to English. Choose **Language → Follow System / 简体中文 / English** in the menu, or use the language picker in Help, to switch immediately; your choice is saved. Your session titles, task text, project paths, and messages from external services stay in their original language.
 
+## Screenshots and short tour
+
+![Getting started in English](docs/images/help-en.png)
+
+[中文界面](docs/images/help-zh.png) · [About & Updates](docs/images/about-en.png)
+
+![Bilingual interface tour](docs/images/bilingual-tour.gif)
+
+Native app views rendered with synthetic data. The short tour cycles through English and Chinese help and version information; it contains no account or session data.
+
 ## Requirements
 
 - macOS 13 or later.
@@ -77,6 +87,8 @@ The endpoint must return JSON with ISO-8601 dates:
 
 Remove `usageEndpoint` to return to the local CLI data source. The app checks quota every 60 seconds and also reacts to CLI quota updates. **立即刷新** (Refresh now) performs a manual check.
 
+A failed read retains the previous values but marks them **stale** with a `⚠` in the menu bar. Data older than three minutes is also marked stale. The menu shows the age and full update date; successful reads or live updates restore the current status. Opening the menu refreshes these labels.
+
 ## Third-party reset forecasts
 
 **重置概率预测** (Reset forecast) is a separate option, off by default. Enabling it immediately requests a forecast from [willcodexquotareset.com](https://www.willcodexquotareset.com/). Forecasts then refresh with active quota checks, including manual refresh, the 60-second check, scheduled activity, and quota-reset retries. Passive CLI quota notifications do not cause extra forecast requests.
@@ -89,9 +101,13 @@ The menu shows the service's reset probability over a 48-hour horizon, its updat
 
 Choose **修改触发时间…** (Edit Trigger Times) to enter one or more `HH:mm` 24-hour times, separated by English commas: `06:00, 12:30, 18:00`. Both languages use the same format; Chinese commas, enumeration commas, and empty entries are rejected. Existing saved schedules are preserved. Saving immediately reschedules the next trigger.
 
-The menu shows the current state, last trigger, and next scheduled trigger. The app persists its setting, latest result, and handled time windows. On launch or wake after a missed schedule, it compensates for only the most recent missed window and does not repeat a handled window.
+The menu shows the current state, last trigger, result (in progress, succeeded, or failed), trigger reason, and next scheduled trigger. Failures show a safe category such as CLI unavailable, timeout, or exhausted quota; any pending quota-reset retry has its own time. An interrupted request is marked as failed after relaunch, rather than left in progress. The app persists its setting, latest result, and handled time windows. On launch or wake after a missed schedule, it compensates for only the most recent missed window and does not repeat a handled window.
 
 Scheduling checks, trigger reasons, results, and errors go to macOS Unified Logging under subsystem `com.example.CodexQuotaMenuBar`, category `AutoRefresh`. Error details are marked private.
+
+## Version and updates
+
+Open **About & Updates…** from the menu to see the installed release version, MIT license, and GitHub releases link. **Check for Updates** reads the public GitHub release list only when clicked, without Codex credentials or session data. Preview builds also check newer previews; stable builds check stable releases. New versions open their release page for manual download. This does not install updates automatically.
 
 ## License
 

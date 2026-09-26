@@ -6,6 +6,7 @@ final class QuotaStore: ObservableObject {
     @Published private(set) var isRefreshing = false
 
     private var latestError: Error?
+    private var liveUpdateRevision = 0
     private var refreshTask: Task<Void, Never>?
     private let refreshInterval: Duration = .seconds(60)
     private let dataSource: any UsageDataSource
@@ -19,6 +20,11 @@ final class QuotaStore: ObservableObject {
     }
 
     var snapshot: CodexUsageSnapshot? { state.snapshot }
+    func freshness(at date: Date = .now) -> QuotaFreshness {
+        if latestError != nil, snapshot != nil { return .stale }
+        return state.freshness(at: date)
+    }
+    func freshnessText(at date: Date = .now) -> String { freshness(at: date).localizedText }
     var errorMessage: String? {
         if case .unavailable(let message, _) = state { return latestError?.localizedDescription ?? message }
         return nil
@@ -27,6 +33,8 @@ final class QuotaStore: ObservableObject {
     func start() async {
         guard refreshTask == nil else { return }
         (dataSource as? any LiveUsageDataSource)?.setUpdateHandler { [weak self] snapshot in
+            self?.liveUpdateRevision += 1
+            self?.latestError = nil
             self?.state = .available(snapshot)
         }
         await refresh()
@@ -44,12 +52,15 @@ final class QuotaStore: ObservableObject {
         isRefreshing = true
         defer { isRefreshing = false }
         let previous = snapshot
+        let revisionAtStart = liveUpdateRevision
         state = .loading(previous)
         do {
             let snapshot = try await dataSource.fetchUsage()
+            guard revisionAtStart == liveUpdateRevision else { return }
             latestError = nil
             state = .available(snapshot)
         } catch {
+            guard revisionAtStart == liveUpdateRevision else { return }
             latestError = error
             state = .unavailable(message: error.localizedDescription, lastKnown: previous)
         }

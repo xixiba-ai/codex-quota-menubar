@@ -12,7 +12,7 @@ struct CodexQuotaMenuBarApp: App {
 }
 
 @MainActor
-final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
+final class MenuBarAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     let store = QuotaStore()
     let sessionStore = SessionStore()
     let autoRefreshScheduler = AutoRefreshScheduler()
@@ -22,10 +22,12 @@ final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
     private var stateObservation: AnyCancellable?
     private var autoRefreshObservation: AnyCancellable?
     private var resetForecastObservation: AnyCancellable?
+    private var freshnessTimer: AnyCancellable?
     private var activeQuotaRefreshObservation: AnyCancellable?
     private var lastObservedScheduledRefresh: Date?
     private let shortTermItem = NSMenuItem(title: L10n.tr("正在读取额度…"), action: nil, keyEquivalent: "")
     private let longTermItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+    private let freshnessItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     private let sourceItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     private let resetForecastItem = NSMenuItem(title: L10n.tr("48 小时重置概率：未启用"), action: nil, keyEquivalent: "")
     private let resetForecastSourceItem = NSMenuItem(title: L10n.tr("第三方估算 · willcodexquotareset.com"), action: nil, keyEquivalent: "")
@@ -36,6 +38,10 @@ final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
     private let autoRefreshStatusItem = NSMenuItem(title: L10n.tr("当前状态：关闭"), action: nil, keyEquivalent: "")
     private let lastAutoRefreshItem = NSMenuItem(title: L10n.tr("最近一次触发：—"), action: nil, keyEquivalent: "")
     private let nextAutoRefreshItem = NSMenuItem(title: L10n.tr("下一次计划触发：—"), action: nil, keyEquivalent: "")
+    private let lastResultItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+    private let lastFailureItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+    private let pendingRetryItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+    private var aboutWindow: NSWindow?
     private var sessionPanel: NSPanel?
     private var helpWindow: NSWindow?
 
@@ -69,6 +75,9 @@ final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
             .sink { [weak self] _ in
                 Task { @MainActor in await self?.resetForecastStore.refreshForActiveQuotaRead() }
             }
+        freshnessTimer = Timer.publish(every: 30, on: .main, in: .common).autoconnect().sink { [weak self] _ in
+            self?.renderStatusItem()
+        }
         Task { await store.start() }
         autoRefreshScheduler.start()
         if !UserDefaults.standard.bool(forKey: "hasShownGettingStarted") {
@@ -77,6 +86,7 @@ final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        freshnessTimer?.cancel()
         store.stop()
         sessionStore.stop()
         autoRefreshScheduler.stop()
@@ -87,7 +97,8 @@ final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
         let statusItem = self.statusItem ?? NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem.menu?.removeAllItems()
         let menu = NSMenu()
-        [shortTermItem, longTermItem, sourceItem].forEach {
+        menu.delegate = self
+        [shortTermItem, longTermItem, freshnessItem, sourceItem].forEach {
             $0.isEnabled = false
             menu.addItem($0)
         }
@@ -106,7 +117,7 @@ final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
         autoRefreshScheduleItem.action = #selector(editAutoRefreshSchedule)
         autoRefreshScheduleItem.target = self
         menu.addItem(autoRefreshScheduleItem)
-        [autoRefreshTimesItem, autoRefreshStatusItem, lastAutoRefreshItem, nextAutoRefreshItem].forEach {
+        [autoRefreshTimesItem, autoRefreshStatusItem, lastAutoRefreshItem, lastResultItem, lastFailureItem, nextAutoRefreshItem, pendingRetryItem].forEach {
             $0.isEnabled = false
             menu.addItem($0)
         }
@@ -129,6 +140,7 @@ final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
         languageItem.submenu = languageMenu
         menu.addItem(languageItem)
         menu.addItem(withTitle: L10n.tr("新手引导与帮助…"), action: #selector(showHelp), keyEquivalent: "?").target = self
+        menu.addItem(withTitle: L10n.tr("关于与更新…"), action: #selector(showAbout), keyEquivalent: "").target = self
         menu.addItem(withTitle: L10n.tr("退出"), action: #selector(quit), keyEquivalent: "q").target = self
 
         statusItem.menu = menu
@@ -151,9 +163,14 @@ final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
         configureStatusItem()
         sessionPanel?.title = L10n.tr("定位 Codex 会话")
         helpWindow?.title = L10n.tr("Codex Quota · 新手引导与帮助")
+        aboutWindow?.title = L10n.tr("关于与更新")
     }
 
+    func menuWillOpen(_ menu: NSMenu) { renderStatusItem() }
+
     private func renderStatusItem() {
+        freshnessItem.title = store.freshnessText()
+        statusItem?.button?.toolTip = store.freshnessText()
         renderAutoRefreshMenu(autoRefreshScheduler.state)
         guard let snapshot = store.snapshot else {
             let message = store.errorMessage
@@ -169,11 +186,16 @@ final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
             ? "\(snapshot.shortTerm.clampedPercent)% \(TimeFormatter.resetDate(snapshot.shortTerm.resetsAt))"
             : "\(snapshot.shortTerm.clampedPercent)% \(TimeFormatter.remaining(snapshot.shortTerm.resetsAt))"
         statusItem?.button?.title = snapshot.longTerm.map { "\(shortTermText) · \($0.clampedPercent)%" } ?? shortTermText
+        if store.freshness() == .stale {
+            statusItem?.button?.title = "⚠ " + (statusItem?.button?.title ?? "")
+        }
         shortTermItem.title = isLongTermOnly
             ? L10n.tr("长期：剩余 \(snapshot.shortTerm.clampedPercent)% · \(TimeFormatter.fullDate(snapshot.shortTerm.resetsAt)) 重置")
             : L10n.tr("短周期：剩余 \(snapshot.shortTerm.clampedPercent)% · \(TimeFormatter.remaining(snapshot.shortTerm.resetsAt)) 后重置")
         longTermItem.title = snapshot.longTerm.map { L10n.tr("长期：剩余 \($0.clampedPercent)% · \(TimeFormatter.fullDate($0.resetsAt)) 重置") } ?? (isLongTermOnly ? L10n.tr("短周期：当前套餐未提供此额度周期") : L10n.tr("长期：当前套餐未提供此额度周期"))
-        sourceItem.title = L10n.tr("更新于 \(snapshot.updatedAt.formatted(Date.FormatStyle(date: .omitted, time: .shortened).locale(L10n.locale))) · \(snapshot.localizedSourceDescription)")
+        freshnessItem.title = store.freshnessText() + " · " + TimeFormatter.dataAge(snapshot.updatedAt)
+        statusItem?.button?.toolTip = freshnessItem.title
+        sourceItem.title = L10n.tr("更新于 \(snapshot.updatedAt.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened).locale(L10n.locale))) · \(snapshot.localizedSourceDescription)")
     }
 
     private func renderAutoRefreshMenu(_ state: AutoRefreshState) {
@@ -183,6 +205,13 @@ final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
         autoRefreshTimesItem.title = L10n.tr("触发时间：\(AutoRefreshSchedule.formattedTimeList(state.triggerMinutes))")
         autoRefreshStatusItem.title = L10n.tr("当前状态：\(statusText)")
         lastAutoRefreshItem.title = L10n.tr("最近一次触发：\(formatAutoRefreshDate(state.lastTriggerTime))")
+        let result = state.lastTriggerResult?.localizedText ?? L10n.tr("尚未执行")
+        let reason = state.lastTriggerReason.map { " · " + $0.localizedText } ?? ""
+        lastResultItem.title = L10n.tr("执行结果：\(result)\(reason)")
+        lastFailureItem.isHidden = state.lastTriggerResult != .failed
+        lastFailureItem.title = L10n.tr("失败原因：\((state.lastFailureKind ?? .unknown).localizedText)")
+        pendingRetryItem.isHidden = state.pendingQuotaResetRetryTime == nil || !state.autoRefreshEnabled
+        pendingRetryItem.title = L10n.tr("额度重置后重试：\(formatAutoRefreshDate(state.pendingQuotaResetRetryTime))")
         nextAutoRefreshItem.title = L10n.tr("下一次计划触发：\(formatAutoRefreshDate(state.nextTriggerTime))")
     }
 
@@ -267,6 +296,23 @@ final class MenuBarAppDelegate: NSObject, NSApplicationDelegate {
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         UserDefaults.standard.set(true, forKey: "hasShownGettingStarted")
+    }
+
+    @objc private func showAbout() {
+        if let aboutWindow {
+            aboutWindow.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 438, height: 290),
+                              styleMask: [.titled, .closable], backing: .buffered, defer: false)
+        window.title = L10n.tr("关于与更新")
+        window.isReleasedWhenClosed = false
+        window.contentView = NSHostingView(rootView: AboutView())
+        window.center()
+        aboutWindow = window
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     @objc private func editAutoRefreshSchedule() {

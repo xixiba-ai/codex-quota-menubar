@@ -83,7 +83,7 @@ An old `distribution/staging/Codex Quota.app` may also be discovered by LaunchSe
 Complete verification and commit your changes first, then run:
 
 ```sh
-./scripts/package-release.sh 1.0.0-preview.3 3
+./scripts/package-release.sh 1.0.0-preview.4 4
 ```
 
 Use a new version for a new release. The script requires full Xcode; use `DEVELOPER_DIR` to select a specific installation. It exports the current commit, builds arm64 and x86_64 Release binaries in a separate temporary directory, checks the version and bundle contents, adds the MIT license and installation guides, and creates a DMG and SHA-256 checksums. It stops if output for that version already exists.
@@ -141,3 +141,13 @@ Schedule input accepts only `HH:mm` 24-hour times separated by ASCII commas, wit
 The session panel's **Resume in Terminal** action uses the same Codex executable resolver as the quota reader. It validates the project directory and executable, prepares a private executable `.command` file, and opens it explicitly with `com.apple.Terminal` through `NSWorkspace`. The script removes itself before changing directory and executing `codex resume -- SESSION_ID`. No AppleScript automation permission is needed. The compact copy button remains available for manual use.
 
 Test launch behavior with an injected opener or a local fake CLI; never use a real session merely to verify the button. Cover spaces, quotes, Unicode, shell metacharacters, leading-dash IDs, missing folders/CLI, launch failures, and temporary-file cleanup. Session identifiers and project paths must never be copied into release artifacts or diagnostics intended for publication.
+
+## Freshness, execution results, and releases
+
+`QuotaStore.freshness` keeps failed retained reads stale during a retry, and treats samples older than 180 seconds as stale. Live updates clear prior errors. The native menu rerenders every 30 seconds and when opened. Scheduler state stores only the latest result, a stable reason enum, and a fixed failure category; preserve decoding compatibility. A persisted in-progress result becomes interrupted when loaded.
+
+`AppUpdateChecker` compares SemVer, filters drafts, and builds release links from the fixed repository URL. Preview installations include prereleases; stable installations exclude them. No automatic checking or installation occurs. The packaging script sets and verifies `CodexQuotaReleaseVersion` independently from the numeric app version/build. Keep the project defaults consistent when preparing a release.
+
+Documentation images are rendered from real SwiftUI views with synthetic data by the opt-in `DocumentationSnapshots` test. Do not capture real sessions, credentials, user paths, or unrelated desktop content. Generate images using `TEST_RUNNER_QUOTA_DOC_SNAPSHOTS` with an absolute output directory when running `scripts/verify.sh`; normal verification skips the exporter.
+
+After rendering, run `python3 scripts/make-doc-tour.py build/documentation-snapshots docs/images` (requires Pillow) to copy the four public views and assemble the short bilingual GIF. Inspect every exported image before committing.

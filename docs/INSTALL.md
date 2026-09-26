@@ -51,3 +51,7 @@ shasum -a 256 Codex-Quota-*-universal.dmg
 源码：https://github.com/xixiba-ai/codex-quota-menubar
 
 问题反馈：https://github.com/xixiba-ai/codex-quota-menubar/issues
+
+## 检查新版
+
+从菜单栏选择“关于与更新… → 检查更新”。发现新版后打开对应发布页，下载 DMG，退出应用后替换“应用程序”中的旧版本。原有语言和调度设置会保留。仅手动检查，不会自动安装。

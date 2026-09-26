@@ -8,6 +8,8 @@ struct AutoRefreshState: Codable, Equatable {
     var lastTriggerTime: Date?
     var nextTriggerTime: Date?
     var lastTriggerResult: AutoRefreshTriggerResult?
+    var lastTriggerReason: AutoRefreshTriggerReason?
+    var lastFailureKind: AutoRefreshFailureKind?
     var missedTriggerCount: Int
     /// A one-off retry scheduled for the exact time Codex says a rate limit resets.
     var pendingQuotaResetRetryTime: Date?
@@ -22,6 +24,8 @@ struct AutoRefreshState: Codable, Equatable {
         lastTriggerTime: Date? = nil,
         nextTriggerTime: Date? = nil,
         lastTriggerResult: AutoRefreshTriggerResult? = nil,
+        lastTriggerReason: AutoRefreshTriggerReason? = nil,
+        lastFailureKind: AutoRefreshFailureKind? = nil,
         missedTriggerCount: Int = 0,
         pendingQuotaResetRetryTime: Date? = nil,
         lastHandledWindowID: String? = nil,
@@ -31,6 +35,8 @@ struct AutoRefreshState: Codable, Equatable {
         self.lastTriggerTime = lastTriggerTime
         self.nextTriggerTime = nextTriggerTime
         self.lastTriggerResult = lastTriggerResult
+        self.lastTriggerReason = lastTriggerReason
+        self.lastFailureKind = lastFailureKind
         self.missedTriggerCount = missedTriggerCount
         self.pendingQuotaResetRetryTime = pendingQuotaResetRetryTime
         self.lastHandledWindowID = lastHandledWindowID
@@ -40,6 +46,7 @@ struct AutoRefreshState: Codable, Equatable {
 
     private enum CodingKeys: String, CodingKey {
         case autoRefreshEnabled, lastTriggerTime, nextTriggerTime, lastTriggerResult
+        case lastTriggerReason, lastFailureKind
         case missedTriggerCount, pendingQuotaResetRetryTime, lastHandledWindowID, triggerMinutes
     }
 
@@ -50,6 +57,8 @@ struct AutoRefreshState: Codable, Equatable {
             lastTriggerTime: try container.decodeIfPresent(Date.self, forKey: .lastTriggerTime),
             nextTriggerTime: try container.decodeIfPresent(Date.self, forKey: .nextTriggerTime),
             lastTriggerResult: try container.decodeIfPresent(AutoRefreshTriggerResult.self, forKey: .lastTriggerResult),
+            lastTriggerReason: try container.decodeIfPresent(AutoRefreshTriggerReason.self, forKey: .lastTriggerReason),
+            lastFailureKind: try container.decodeIfPresent(AutoRefreshFailureKind.self, forKey: .lastFailureKind),
             missedTriggerCount: try container.decodeIfPresent(Int.self, forKey: .missedTriggerCount) ?? 0,
             pendingQuotaResetRetryTime: try container.decodeIfPresent(Date.self, forKey: .pendingQuotaResetRetryTime),
             lastHandledWindowID: try container.decodeIfPresent(String.self, forKey: .lastHandledWindowID),
@@ -63,6 +72,48 @@ enum AutoRefreshTriggerResult: String, Codable, Equatable {
     case inProgress
     case succeeded
     case failed
+
+    var localizedText: String {
+        switch self {
+        case .inProgress: L10n.tr("进行中")
+        case .succeeded: L10n.tr("成功")
+        case .failed: L10n.tr("失败")
+        }
+    }
+}
+
+/// Only this fixed category is persisted. CLI stderr and launch error text stay out of defaults.
+enum AutoRefreshFailureKind: String, Codable, Equatable {
+    case cliUnavailable
+    case launchFailed
+    case timedOut
+    case quotaLimited
+    case commandFailed
+    case interrupted
+    case unknown
+
+    init(error: Error) {
+        switch error {
+        case CodexCLIRefreshTriggerError.executableNotFound: self = .cliUnavailable
+        case CodexCLIRefreshTriggerError.launchFailed: self = .launchFailed
+        case CodexCLIRefreshTriggerError.timedOut: self = .timedOut
+        case CodexCLIRefreshTriggerError.usageLimit: self = .quotaLimited
+        case CodexCLIRefreshTriggerError.failed: self = .commandFailed
+        default: self = .unknown
+        }
+    }
+
+    var localizedText: String {
+        switch self {
+        case .cliUnavailable: L10n.tr("未找到 Codex CLI")
+        case .launchFailed: L10n.tr("无法启动 Codex CLI")
+        case .timedOut: L10n.tr("刷新超时")
+        case .quotaLimited: L10n.tr("额度已用尽")
+        case .commandFailed: L10n.tr("刷新失败")
+        case .interrupted: L10n.tr("上次刷新已中断")
+        case .unknown: L10n.tr("未知错误")
+        }
+    }
 }
 
 enum AutoRefreshTriggerReason: String, Codable, Equatable {
@@ -71,6 +122,16 @@ enum AutoRefreshTriggerReason: String, Codable, Equatable {
     case launchCompensation = "启动补偿"
     case clockChangeCompensation = "时间变更补偿"
     case quotaResetRetry = "额度重置后重试"
+
+    var localizedText: String {
+        switch self {
+        case .scheduled: L10n.tr("正常计划")
+        case .wakeCompensation: L10n.tr("休眠补偿")
+        case .launchCompensation: L10n.tr("启动补偿")
+        case .clockChangeCompensation: L10n.tr("时间变更补偿")
+        case .quotaResetRetry: L10n.tr("额度重置后重试")
+        }
+    }
 }
 
 struct AutoRefreshScheduleWindow: Equatable {
@@ -184,8 +245,13 @@ final class AutoRefreshStateStore {
 
     func load() -> AutoRefreshState {
         guard let data = defaults.data(forKey: key),
-              let state = try? JSONDecoder().decode(AutoRefreshState.self, from: data) else {
+              var state = try? JSONDecoder().decode(AutoRefreshState.self, from: data) else {
             return AutoRefreshState()
+        }
+        if state.lastTriggerResult == .inProgress {
+            state.lastTriggerResult = .failed
+            state.lastFailureKind = .interrupted
+            save(state)
         }
         return state
     }
@@ -361,6 +427,8 @@ final class AutoRefreshScheduler: ObservableObject {
             $0.lastHandledWindowID = window.id
             $0.lastTriggerTime = checkTime
             $0.lastTriggerResult = .inProgress
+            $0.lastTriggerReason = reason
+            $0.lastFailureKind = nil
             if isCompensation { $0.missedTriggerCount += 1 }
         }
         logger.record(checkTime: checkTime, reason: reason, result: .inProgress, error: nil)
@@ -373,7 +441,10 @@ final class AutoRefreshScheduler: ObservableObject {
             }
             logger.record(checkTime: Date.now, reason: reason, result: .succeeded, error: nil)
         } catch {
-            mutateState { $0.lastTriggerResult = .failed }
+            mutateState {
+                $0.lastTriggerResult = .failed
+                $0.lastFailureKind = AutoRefreshFailureKind(error: error)
+            }
             logger.record(checkTime: Date.now, reason: reason, result: .failed, error: error)
             scheduleQuotaResetRetry(after: error, currentTime: checkTime)
         }
@@ -401,6 +472,8 @@ final class AutoRefreshScheduler: ObservableObject {
             $0.pendingQuotaResetRetryTime = nil
             $0.lastTriggerTime = now
             $0.lastTriggerResult = .inProgress
+            $0.lastTriggerReason = .quotaResetRetry
+            $0.lastFailureKind = nil
         }
         logger.record(checkTime: now, reason: .quotaResetRetry, result: .inProgress, error: nil)
 
@@ -409,7 +482,10 @@ final class AutoRefreshScheduler: ObservableObject {
             mutateState { $0.lastTriggerResult = .succeeded }
             logger.record(checkTime: Date.now, reason: .quotaResetRetry, result: .succeeded, error: nil)
         } catch {
-            mutateState { $0.lastTriggerResult = .failed }
+            mutateState {
+                $0.lastTriggerResult = .failed
+                $0.lastFailureKind = AutoRefreshFailureKind(error: error)
+            }
             logger.record(checkTime: Date.now, reason: .quotaResetRetry, result: .failed, error: error)
             scheduleQuotaResetRetry(after: error, currentTime: now)
         }

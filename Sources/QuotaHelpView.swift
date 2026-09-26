@@ -1,11 +1,19 @@
 import SwiftUI
 
 struct QuotaHelpView: View {
-    @ObservedObject private var language = AppLanguageStore.shared
+    @ObservedObject private var language: AppLanguageStore
     @ObservedObject var store: QuotaStore
     let openSessions: () -> Void
     let dismiss: () -> Void
     @State private var section: HelpSection = .gettingStarted
+
+    init(store: QuotaStore, languageStore: AppLanguageStore = .shared,
+         openSessions: @escaping () -> Void, dismiss: @escaping () -> Void) {
+        self.store = store
+        self.language = languageStore
+        self.openSessions = openSessions
+        self.dismiss = dismiss
+    }
 
     private enum HelpSection: CaseIterable {
         case gettingStarted, features, questions
@@ -121,7 +129,7 @@ struct QuotaHelpView: View {
                 if store.isRefreshing {
                     ProgressView().controlSize(.small)
                     Text(L10n.tr("正在读取额度…"))
-                } else if store.errorMessage != nil {
+                } else if store.errorMessage != nil || store.freshness() == .stale {
                     Label(L10n.tr("暂时无法读取额度"), systemImage: "exclamationmark.circle")
                         .foregroundStyle(.orange)
                 } else if store.snapshot != nil {

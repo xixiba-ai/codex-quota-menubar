@@ -59,4 +59,27 @@ enum QuotaState: Equatable {
         case .unavailable(_, let snapshot): snapshot
         }
     }
+
+    /// A retained snapshot never becomes current again merely because a read is in flight.
+    func freshness(at date: Date = .now, staleAfter: TimeInterval = 3 * 60) -> QuotaFreshness {
+        guard let snapshot else { return self == .loading(nil) ? .loading : .unavailable }
+        if case .unavailable = self { return .stale }
+        return date.timeIntervalSince(snapshot.updatedAt) > staleAfter ? .stale : .current
+    }
+}
+
+enum QuotaFreshness: Equatable {
+    case loading
+    case current
+    case stale
+    case unavailable
+
+    var localizedText: String {
+        switch self {
+        case .loading: L10n.tr("额度数据：获取中")
+        case .current: L10n.tr("额度数据：最新")
+        case .stale: L10n.tr("额度数据：已过期")
+        case .unavailable: L10n.tr("额度数据：暂不可用")
+        }
+    }
 }

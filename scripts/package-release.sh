@@ -38,6 +38,7 @@ xcodebuild \
   "MARKETING_VERSION=$APP_VERSION" "CURRENT_PROJECT_VERSION=$BUILD_NUMBER" \
   "INFOPLIST_KEY_CFBundleShortVersionString=$APP_VERSION" \
   "INFOPLIST_KEY_CFBundleVersion=$BUILD_NUMBER" \
+  "INFOPLIST_KEY_CodexQuotaReleaseVersion=$VERSION" \
   build > "$WORK_DIR/build.log" 2>&1 || {
     print -u2 "Build failed. See $WORK_DIR/build.log"
     exit 1
@@ -67,7 +68,7 @@ xcrun strip -S "$APP/Contents/MacOS/Codex Quota"
 codesign --force --sign - --identifier com.example.CodexQuotaMenuBar "$APP"
 codesign --verify --deep --strict "$APP"
 
-python3 - "$WORK_DIR/staging" "$APP_VERSION" "$BUILD_NUMBER" <<'PY'
+python3 - "$WORK_DIR/staging" "$APP_VERSION" "$BUILD_NUMBER" "$VERSION" <<'PY'
 from pathlib import Path
 import plistlib, re, subprocess, sys
 
@@ -80,6 +81,7 @@ with (app / 'Contents/Info.plist').open('rb') as source:
 assert info['CFBundleIdentifier'] == 'com.example.CodexQuotaMenuBar'
 assert info['CFBundleShortVersionString'] == sys.argv[2]
 assert info['CFBundleVersion'] == sys.argv[3]
+assert info['CodexQuotaReleaseVersion'] == sys.argv[4]
 assert info['LSMinimumSystemVersion'] == '13.0'
 for language in ('en', 'zh-Hans'):
     translation = app / 'Contents/Resources' / f'{language}.lproj/Localizable.strings'

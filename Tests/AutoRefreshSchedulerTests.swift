@@ -105,6 +105,8 @@ final class AutoRefreshSchedulerTests: XCTestCase {
 
         XCTAssertEqual(trigger.callCount, 1)
         XCTAssertEqual(scheduler.state.lastTriggerResult, .failed)
+        XCTAssertEqual(scheduler.state.lastTriggerReason, .scheduled)
+        XCTAssertEqual(scheduler.state.lastFailureKind, .unknown)
         XCTAssertEqual(scheduler.state.missedTriggerCount, 0)
         XCTAssertTrue(logger.events.contains(RecordedEvent(reason: .scheduled, result: .failed, hasError: true)))
     }
@@ -127,11 +129,18 @@ final class AutoRefreshSchedulerTests: XCTestCase {
         await scheduler.handleScheduledTimer(for: date(2026, 7, 11, 10, 30), now: date(2026, 7, 11, 10, 30))
         XCTAssertEqual(scheduler.state.pendingQuotaResetRetryTime, resetAt)
         XCTAssertEqual(scheduler.state.nextTriggerTime, resetAt)
+        XCTAssertEqual(scheduler.state.lastFailureKind, .quotaLimited)
+        XCTAssertEqual(stateStore.load().lastTriggerReason, .scheduled)
+        XCTAssertEqual(stateStore.load().lastFailureKind, .quotaLimited)
 
         await scheduler.handleQuotaResetRetryTimer(now: resetAt)
         XCTAssertEqual(trigger.callCount, 2)
         XCTAssertNil(scheduler.state.pendingQuotaResetRetryTime)
         XCTAssertEqual(scheduler.state.lastTriggerResult, .succeeded)
+        XCTAssertEqual(scheduler.state.lastTriggerReason, .quotaResetRetry)
+        XCTAssertNil(scheduler.state.lastFailureKind)
+        XCTAssertEqual(stateStore.load().lastTriggerReason, .quotaResetRetry)
+        XCTAssertNil(stateStore.load().lastFailureKind)
     }
 
     func testUsageLimitResetTimeParserKeepsTheCurrentMinuteAndRollsOlderTimesForward() {
@@ -229,6 +238,43 @@ final class AutoRefreshSchedulerTests: XCTestCase {
         XCTAssertTrue(restored.autoRefreshEnabled)
         XCTAssertEqual(restored.missedTriggerCount, 2)
         XCTAssertEqual(restored.triggerMinutes, AutoRefreshSchedule.defaultTriggerMinutes)
+        XCTAssertNil(restored.lastTriggerReason)
+        XCTAssertNil(restored.lastFailureKind)
+    }
+
+    func testFailureClassificationDoesNotPersistRawCLIOutput() async throws {
+        let secret = "private CLI diagnostics 12345"
+        let scheduler = AutoRefreshScheduler(
+            stateStore: stateStore,
+            trigger: RecordingTrigger(error: CodexCLIRefreshTriggerError.failed(exitCode: 17, message: secret)),
+            logger: RecordingLogger(),
+            calendar: calendar,
+            armsTimers: false
+        )
+        scheduler.setEnabled(true, at: date(2026, 7, 11, 10, 0))
+
+        await scheduler.handleScheduledTimer(for: date(2026, 7, 11, 10, 30), now: date(2026, 7, 11, 10, 30))
+
+        XCTAssertEqual(scheduler.state.lastFailureKind, .commandFailed)
+        XCTAssertEqual(stateStore.load().lastTriggerReason, .scheduled)
+        XCTAssertEqual(stateStore.load().lastFailureKind, .commandFailed)
+        let saved = try XCTUnwrap(defaults.data(forKey: "state"))
+        XCTAssertFalse(String(decoding: saved, as: UTF8.self).contains(secret))
+    }
+
+    func testInterruptedExecutionRecoversAsSafeFailureOnRelaunch() {
+        stateStore.save(AutoRefreshState(
+            autoRefreshEnabled: true,
+            lastTriggerTime: date(2026, 7, 11, 10, 30),
+            lastTriggerResult: .inProgress,
+            lastTriggerReason: .scheduled
+        ))
+
+        let restored = stateStore.load()
+        XCTAssertEqual(restored.lastTriggerResult, .failed)
+        XCTAssertEqual(restored.lastTriggerReason, .scheduled)
+        XCTAssertEqual(restored.lastFailureKind, .interrupted)
+        XCTAssertEqual(stateStore.load(), restored)
     }
 
     private func date(_ year: Int, _ month: Int, _ day: Int, _ hour: Int, _ minute: Int) -> Date {

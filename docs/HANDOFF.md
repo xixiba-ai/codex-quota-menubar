@@ -85,7 +85,7 @@ open "/Applications/Codex Quota.app"
 先完成测试并提交工作区改动，再运行：
 
 ```sh
-./scripts/package-release.sh 1.0.0-preview.3 3
+./scripts/package-release.sh 1.0.0-preview.4 4
 ```
 
 脚本要求完整 Xcode；需要选择特定 Xcode 时，通过 `DEVELOPER_DIR` 指定。它导出当前提交，在独立临时目录构建 arm64 / x86_64 Release，校验版本与包内容，加入 MIT 许可证和安装说明，并生成 DMG 和 SHA-256 校验文件。已有同版本输出时会停止，避免覆盖。
@@ -143,3 +143,13 @@ log show --last 1h --predicate 'subsystem == "com.example.CodexQuotaMenuBar" AND
 会话面板的“在终端续接”使用与额度读取相同的 Codex 可执行文件定位逻辑。它校验项目目录与可执行文件，生成私有、可执行的 `.command` 文件，通过 `NSWorkspace` 明确交给 `com.apple.Terminal` 打开。脚本会在进入项目目录并执行 `codex resume -- SESSION_ID` 前删除自身，不需要 AppleScript 自动化权限。小型复制按钮保留手动操作入口。
 
 验证时使用注入的打开器或本地虚构 CLI，不要仅为验证按钮而打开真实会话。覆盖空格、引号、中文、shell 特殊字符、以连字符开头的 ID、目录或 CLI 缺失、打开失败与临时文件清理。会话 ID 和项目路径不得混入发行附件或准备公开的诊断材料。
+
+## 数据新鲜度、执行结果与更新
+
+`QuotaStore.freshness` 将失败后保留的数据和超过 180 秒的数据标为过期，重试期间保持过期状态，实时更新会清除旧错误。原生菜单每 30 秒以及打开时重新渲染。调度状态仅保留最近一次执行结果、稳定的原因枚举和固定失败类别；新增字段需兼容旧设置。载入时将未完成的执行标为中断。
+
+`AppUpdateChecker` 按 SemVer 比较版本，过滤草稿，并从固定仓库地址生成发布链接。预览版包含预览更新，正式版只接收正式更新。仅手动检查，不会自动安装。打包脚本注入并校验 `CodexQuotaReleaseVersion`，发布时同步项目内的版本默认值。
+
+文档图片由可选的 `DocumentationSnapshots` 测试使用虚构数据渲染真实 SwiftUI 视图。运行 `scripts/verify.sh` 时通过 `TEST_RUNNER_QUOTA_DOC_SNAPSHOTS` 指定绝对输出目录；普通测试跳过导出。不得捕捉真实会话、凭据、个人路径或无关桌面内容。
+
+渲染后执行 `python3 scripts/make-doc-tour.py build/documentation-snapshots docs/images`（需要 Pillow），复制四张公开界面图并生成双语 GIF。提交前逐张检查。

@@ -49,3 +49,7 @@ Compare the result with the entry for the same DMG filename in `SHA256SUMS.txt`.
 The project uses the **MIT License**. The full license is included at the root of the disk image and inside the app's resources. Keep the copyright notice and license when modifying or redistributing the software.
 
 [Source code](https://github.com/xixiba-ai/codex-quota-menubar) · [Report an issue](https://github.com/xixiba-ai/codex-quota-menubar/issues)
+
+## Check for a newer version
+
+Choose **About & Updates… → Check for Updates** in the menu bar menu. If a newer release is available, open its release page, download the DMG, and replace the app in Applications after quitting it. Your existing language and scheduling preferences are retained. The app checks only when requested and does not install updates automatically.

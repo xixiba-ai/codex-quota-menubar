@@ -115,6 +115,13 @@ struct QuotaMenuContent: View {
                 .padding(.vertical, 12)
             }
 
+            TimelineView(.periodic(from: .now, by: 30)) { context in
+                Label(store.freshnessText(at: context.date),
+                      systemImage: store.freshness(at: context.date) == .stale ? "exclamationmark.triangle" : "clock")
+                    .font(.caption)
+                    .foregroundStyle(store.freshness(at: context.date) == .stale ? Color.orange : Color.secondary)
+            }
+
             if let errorMessage = store.errorMessage {
                 Label(errorMessage, systemImage: "wifi.exclamationmark")
                     .font(.caption)
@@ -158,6 +165,13 @@ private struct DetailRow: View {
 }
 
 enum TimeFormatter {
+    static func dataAge(_ date: Date, relativeTo now: Date = .now) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.locale = L10n.locale
+        formatter.unitsStyle = .full
+        return formatter.localizedString(for: min(date, now), relativeTo: now)
+    }
+
     static func remaining(_ date: Date) -> String {
         let seconds = max(0, Int(date.timeIntervalSinceNow))
         return String(format: "%02d:%02d", seconds / 3600, (seconds % 3600) / 60)
