@@ -12,7 +12,7 @@ struct CodexQuotaMenuBarApp: App {
 }
 
 @MainActor
-final class MenuBarAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
+final class MenuBarAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemValidation {
     let store = QuotaStore()
     let sessionStore = SessionStore()
     let autoRefreshScheduler = AutoRefreshScheduler()
@@ -20,14 +20,20 @@ final class MenuBarAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate 
     private var statusItem: NSStatusItem?
     private var languageObservation: AnyCancellable?
     private var stateObservation: AnyCancellable?
+    private var refreshingObservation: AnyCancellable?
+    private var lastManualRefreshAt: Date?
     private var autoRefreshObservation: AnyCancellable?
     private var resetForecastObservation: AnyCancellable?
     private var freshnessTimer: AnyCancellable?
     private var activeQuotaRefreshObservation: AnyCancellable?
     private var lastObservedScheduledRefresh: Date?
+    private var lastObservedSuccessfulRefresh: Date?
     private let shortTermItem = NSMenuItem(title: L10n.tr("正在读取额度…"), action: nil, keyEquivalent: "")
+    private let resetCreditsItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     private let longTermItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     private let freshnessItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+    private let refreshItem = NSMenuItem(title: L10n.tr("立即刷新"), action: nil, keyEquivalent: "r")
+    private let refreshResultItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     private let sourceItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
     private let resetForecastItem = NSMenuItem(title: L10n.tr("48 小时重置概率：未启用"), action: nil, keyEquivalent: "")
     private let resetForecastSourceItem = NSMenuItem(title: L10n.tr("第三方估算 · willcodexquotareset.com"), action: nil, keyEquivalent: "")
@@ -53,13 +59,28 @@ final class MenuBarAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate 
         languageObservation = AppLanguageStore.shared.$selection.sink { [weak self] _ in
             Task { @MainActor in self?.applyLanguage() }
         }
-        stateObservation = store.$state.sink { [weak self] _ in
+        stateObservation = store.$state.sink { [weak self] state in
+            Task { @MainActor in
+                guard let self else { return }
+                self.renderStatusItem()
+                if case .available(let snapshot) = state {
+                    await self.autoRefreshScheduler.receiveQuotaSnapshot(snapshot)
+                }
+            }
+        }
+        refreshingObservation = store.$isRefreshing.sink { [weak self] _ in
             Task { @MainActor in self?.renderStatusItem() }
         }
         autoRefreshObservation = autoRefreshScheduler.$state.sink { [weak self] state in
             Task { @MainActor in
                 guard let self else { return }
                 self.renderAutoRefreshMenu(state)
+                if state.lastTriggerResult == .succeeded,
+                   let time = state.lastTriggerTime,
+                   time != self.lastObservedSuccessfulRefresh {
+                    self.lastObservedSuccessfulRefresh = time
+                    await self.store.refresh()
+                }
                 if state.lastTriggerTime != self.lastObservedScheduledRefresh {
                     self.lastObservedScheduledRefresh = state.lastTriggerTime
                     if state.lastTriggerResult == .inProgress, state.lastTriggerTime != nil {
@@ -98,15 +119,16 @@ final class MenuBarAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate 
         statusItem.menu?.removeAllItems()
         let menu = NSMenu()
         menu.delegate = self
-        [shortTermItem, longTermItem, freshnessItem, sourceItem].forEach {
+        [shortTermItem, resetCreditsItem, longTermItem, freshnessItem, sourceItem, refreshResultItem].forEach {
             $0.isEnabled = false
             menu.addItem($0)
         }
         menu.addItem(.separator())
-        [resetForecastItem, resetForecastSourceItem].forEach {
-            $0.isEnabled = false
-            menu.addItem($0)
-        }
+        resetForecastItem.isEnabled = false
+        menu.addItem(resetForecastItem)
+        resetForecastSourceItem.action = #selector(openResetForecastWebsite)
+        resetForecastSourceItem.target = self
+        menu.addItem(resetForecastSourceItem)
         resetForecastToggleItem.action = #selector(toggleResetForecast)
         resetForecastToggleItem.target = self
         menu.addItem(resetForecastToggleItem)
@@ -123,7 +145,9 @@ final class MenuBarAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate 
         }
         menu.addItem(.separator())
         menu.addItem(withTitle: L10n.tr("定位 Codex 会话…"), action: #selector(showSessionBrowser), keyEquivalent: "f").target = self
-        menu.addItem(withTitle: L10n.tr("立即刷新"), action: #selector(refresh), keyEquivalent: "r").target = self
+        refreshItem.action = #selector(refresh)
+        refreshItem.target = self
+        menu.addItem(refreshItem)
         menu.addItem(.separator())
         let languageItem = NSMenuItem(title: L10n.tr("语言"), action: nil, keyEquivalent: "")
         let languageMenu = NSMenu()
@@ -166,9 +190,38 @@ final class MenuBarAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate 
         aboutWindow?.title = L10n.tr("关于与更新")
     }
 
-    func menuWillOpen(_ menu: NSMenu) { renderStatusItem() }
+    func menuWillOpen(_ menu: NSMenu) {
+        // Status-item menus do not otherwise activate this accessory application.
+        // Request normal activation so macOS can present its system-managed UI.
+        NSApp.activate(ignoringOtherApps: true)
+        renderStatusItem()
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        // Give Finder/Dock reopen requests a window to bring forward, including
+        // when the user is trying to resolve a Screen Time restriction.
+        showHelp()
+        return true
+    }
+
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        menuItem.action != #selector(refresh) || !store.isRefreshing
+    }
 
     private func renderStatusItem() {
+        refreshItem.title = store.isRefreshing ? L10n.tr("正在刷新…") : L10n.tr("立即刷新")
+        refreshItem.isEnabled = !store.isRefreshing
+        if store.isRefreshing {
+            refreshResultItem.title = L10n.tr("正在读取额度…")
+        } else if let error = store.errorMessage {
+            refreshResultItem.title = L10n.tr("额度刷新失败：\(error)")
+        } else if let date = lastManualRefreshAt {
+            refreshResultItem.title = L10n.tr("额度刷新成功 · \(date.formatted(.dateTime.hour().minute().second().locale(L10n.locale)))")
+        } else {
+            refreshResultItem.title = ""
+        }
+        refreshResultItem.isHidden = refreshResultItem.title.isEmpty
+        refreshResultItem.toolTip = refreshResultItem.title
         freshnessItem.title = store.freshnessText()
         statusItem?.button?.toolTip = store.freshnessText()
         renderAutoRefreshMenu(autoRefreshScheduler.state)
@@ -176,19 +229,19 @@ final class MenuBarAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate 
             let message = store.errorMessage
             statusItem?.button?.title = message == nil ? L10n.tr("读取中…") : L10n.tr("额度不可用")
             shortTermItem.title = message ?? L10n.tr("正在连接 Codex CLI…")
+            resetCreditsItem.isHidden = true
             longTermItem.title = ""
             sourceItem.title = ""
             return
         }
 
+        resetCreditsItem.isHidden = false
+        resetCreditsItem.title = ResetCreditsFormatter.summary(snapshot.rateLimitResetCredits)
         let isLongTermOnly = snapshot.hasOnlyLongTermWindow
         let shortTermText = isLongTermOnly
             ? "\(snapshot.shortTerm.clampedPercent)% \(TimeFormatter.resetDate(snapshot.shortTerm.resetsAt))"
             : "\(snapshot.shortTerm.clampedPercent)% \(TimeFormatter.remaining(snapshot.shortTerm.resetsAt))"
         statusItem?.button?.title = snapshot.longTerm.map { "\(shortTermText) · \($0.clampedPercent)%" } ?? shortTermText
-        if store.freshness() == .stale {
-            statusItem?.button?.title = "⚠ " + (statusItem?.button?.title ?? "")
-        }
         shortTermItem.title = isLongTermOnly
             ? L10n.tr("长期：剩余 \(snapshot.shortTerm.clampedPercent)% · \(TimeFormatter.fullDate(snapshot.shortTerm.resetsAt)) 重置")
             : L10n.tr("短周期：剩余 \(snapshot.shortTerm.clampedPercent)% · \(TimeFormatter.remaining(snapshot.shortTerm.resetsAt)) 后重置")
@@ -221,7 +274,23 @@ final class MenuBarAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate 
     }
 
     @objc private func refresh() {
-        Task { await store.refresh() }
+        guard !store.isRefreshing else { return }
+        Task {
+            await store.refresh()
+            lastManualRefreshAt = store.errorMessage == nil ? .now : nil
+            renderStatusItem()
+        }
+    }
+
+    @objc private func openResetForecastWebsite() {
+        let alert = NSAlert()
+        alert.messageText = L10n.tr("打开第三方估算网站？")
+        alert.informativeText = L10n.tr("将在默认浏览器中打开 https://www.willcodexquotareset.com/。该网站提供第三方估算，并非官方重置承诺。")
+        alert.addButton(withTitle: L10n.tr("打开网站"))
+        alert.addButton(withTitle: L10n.tr("取消"))
+        NSApp.activate(ignoringOtherApps: true)
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        NSWorkspace.shared.open(ResetForecastService.websiteURL)
     }
 
     private func renderResetForecastMenu() {

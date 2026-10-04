@@ -85,21 +85,25 @@ The endpoint must return JSON with ISO-8601 dates:
 }
 ```
 
-Remove `usageEndpoint` to return to the local CLI data source. The app checks quota every 60 seconds and also reacts to CLI quota updates. **立即刷新** (Refresh now) performs a manual check.
+Remove `usageEndpoint` to return to the local CLI data source. The app checks quota every 60 seconds and also reacts to CLI quota updates. **立即刷新** (Refresh now) performs a manual check. The menu shows progress, the success time, or the failure reason; timed-out CLI requests can be retried.
 
-A failed read retains the previous values but marks them **stale** with a `⚠` in the menu bar. Data older than three minutes is also marked stale. The menu shows the age and full update date; successful reads or live updates restore the current status. Opening the menu refreshes these labels.
+A failed read retains the previous values but marks them **stale** inside the menu. Data older than three minutes is also marked stale. The menu shows the age and full update date without an exclamation warning in the menu bar; successful reads or live updates restore the current status. Opening the menu refreshes these labels.
+
+Below the short-term quota, the menu shows the remaining earned usage-limit resets and their next expiration, updated with quota reads. The service supplies the authoritative count. Partial details show the earliest known expiration; missing details are labeled explicitly. Expiration dates are never inferred.
 
 ## Third-party reset forecasts
 
 **重置概率预测** (Reset forecast) is a separate option, off by default. Enabling it immediately requests a forecast from [willcodexquotareset.com](https://www.willcodexquotareset.com/). Forecasts then refresh with active quota checks, including manual refresh, the 60-second check, scheduled activity, and quota-reset retries. Passive CLI quota notifications do not cause extra forecast requests.
 
-The menu shows the service's reset probability over a 48-hour horizon, its update time, and the third-party source. Requests do not include Codex login credentials. Forecast failures do not affect quota reads; if a previous result exists, it is kept and marked as potentially stale. Disabling the option cancels an in-flight forecast request. These forecasts are estimates, not official reset commitments.
+The menu shows the service's reset probability over a 48-hour horizon, its update time, and the third-party source. Click the third-party estimate source row and confirm to open the website in your default browser. Requests do not include Codex login credentials. Forecast failures do not affect quota reads; if a previous result exists, it is kept and marked as potentially stale. Disabling the option cancels an in-flight forecast request. These forecasts are estimates, not official reset commitments.
 
 ## Scheduled Codex requests
 
 **自动刷新额度** toggles scheduled activity. The feature is off by default. Its default schedule sends a minimal local Codex CLI request at **05:30, 10:30, 15:30, and 20:30**, using local time. This runs independently from the quota reader and does not change its 60-second refresh interval.
 
 Choose **修改触发时间…** (Edit Trigger Times) to enter one or more `HH:mm` 24-hour times, separated by English commas: `06:00, 12:30, 18:00`. Both languages use the same format; Chinese commas, enumeration commas, and empty entries are rejected. Existing saved schedules are preserved. Saving immediately reschedules the next trigger.
+
+While enabled, the app also sends one minimal request when a successful quota read detects recovery after a manual or service reset. CLI notifications or the next 60-second read detect recovery. The first read, account changes, and small rolling-window changes do not trigger requests. All reported windows must be usable, and an explicit backend denial prevents use. Requests are deduplicated against scheduled requests or retries covering the same recovery; the result shows “Use after quota recovery”. Disabling the feature stops future recovery triggers.
 
 The menu shows the current state, last trigger, result (in progress, succeeded, or failed), trigger reason, and next scheduled trigger. Failures show a safe category such as CLI unavailable, timeout, or exhausted quota; any pending quota-reset retry has its own time. An interrupted request is marked as failed after relaunch, rather than left in progress. The app persists its setting, latest result, and handled time windows. On launch or wake after a missed schedule, it compensates for only the most recent missed window and does not repeat a handled window.
 

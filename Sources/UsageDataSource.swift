@@ -1,4 +1,5 @@
 import Foundation
+import CoreFoundation
 
 @MainActor
 protocol UsageDataSource: AnyObject {
@@ -66,6 +67,8 @@ final class CodexAppServerUsageDataSource: LiveUsageDataSource {
         case invalidMessage
         case missingRateLimits
         case processStopped
+        case timedOut
+        case requestRejected
 
         var errorDescription: String? {
             switch self {
@@ -73,6 +76,8 @@ final class CodexAppServerUsageDataSource: LiveUsageDataSource {
             case .invalidMessage: L10n.tr("Codex CLI 返回了无法识别的额度数据")
             case .missingRateLimits: L10n.tr("Codex CLI 未返回可用的额度周期")
             case .processStopped: L10n.tr("Codex CLI 本地额度服务已停止")
+            case .timedOut: L10n.tr("Codex CLI 响应超时，请重试")
+            case .requestRejected: L10n.tr("Codex CLI 拒绝了额度请求")
             }
         }
     }
@@ -83,10 +88,19 @@ final class CodexAppServerUsageDataSource: LiveUsageDataSource {
     private var outputBuffer = Data()
     private var nextRequestID = 1
     private var initializeRequestID: Int?
+    private var rateLimitsRequestID: Int?
     private var isInitialized = false
     private var initializationContinuations: [CheckedContinuation<Void, Error>] = []
     private var rateLimitsContinuation: CheckedContinuation<CodexUsageSnapshot, Error>?
     private var updateHandler: ((CodexUsageSnapshot) -> Void)?
+    private var timeoutTask: Task<Void, Never>?
+    private let executableOverride: URL?
+    private let requestTimeout: Duration
+
+    init(executableURL: URL? = nil, requestTimeout: Duration = .seconds(12)) {
+        executableOverride = executableURL
+        self.requestTimeout = requestTimeout
+    }
 
     func setUpdateHandler(_ handler: @escaping (CodexUsageSnapshot) -> Void) {
         updateHandler = handler
@@ -99,14 +113,30 @@ final class CodexAppServerUsageDataSource: LiveUsageDataSource {
     }
 
     func stop() {
+        resetProcess(with: AppServerError.processStopped)
+    }
+
+    private func resetProcess(with error: Error) {
+        timeoutTask?.cancel()
+        timeoutTask = nil
         output?.readabilityHandler = nil
         output = nil
         outputBuffer.removeAll(keepingCapacity: false)
-        input?.closeFile()
+        let oldInput = input
         input = nil
-        process?.terminate()
+        let oldProcess = process
         process = nil
         isInitialized = false
+        initializeRequestID = nil
+        rateLimitsRequestID = nil
+        let initialization = initializationContinuations
+        initializationContinuations.removeAll()
+        let rateLimits = rateLimitsContinuation
+        rateLimitsContinuation = nil
+        initialization.forEach { $0.resume(throwing: error) }
+        rateLimits?.resume(throwing: error)
+        oldInput?.closeFile()
+        if oldProcess?.isRunning == true { oldProcess?.terminate() }
     }
 
     private func startIfNeeded() async throws {
@@ -115,36 +145,39 @@ final class CodexAppServerUsageDataSource: LiveUsageDataSource {
             return try await waitForInitialization()
         }
 
-        let executable = try executableURL()
+        let executable = try executableOverride ?? executableURL()
         let process = Process()
         let inputPipe = Pipe()
         let outputPipe = Pipe()
-        let errorPipe = Pipe()
         process.executableURL = executable
         process.arguments = ["app-server", "--stdio"]
         process.standardInput = inputPipe
         process.standardOutput = outputPipe
-        process.standardError = errorPipe
-        process.terminationHandler = { [weak self] _ in
-            Task { @MainActor in self?.didStop(with: AppServerError.processStopped) }
+        process.standardError = FileHandle.nullDevice
+        process.terminationHandler = { [weak self, weak process] _ in
+            Task { @MainActor in
+                guard let self, let process, self.process === process else { return }
+                self.resetProcess(with: AppServerError.processStopped)
+            }
         }
 
         self.process = process
         input = inputPipe.fileHandleForWriting
         let output = outputPipe.fileHandleForReading
         self.output = output
-        output.readabilityHandler = { [weak self] handle in
+        output.readabilityHandler = { [weak self, weak process] handle in
             let data = handle.availableData
             guard !data.isEmpty else { return }
             Task { @MainActor in
-                self?.receive(data: data)
+                guard let self, let process, self.process === process else { return }
+                self.receive(data: data)
             }
         }
 
         do {
             try process.run()
         } catch {
-            stop()
+            resetProcess(with: error)
             throw error
         }
 
@@ -154,6 +187,7 @@ final class CodexAppServerUsageDataSource: LiveUsageDataSource {
                 "clientInfo": ["name": "Codex Quota", "version": "1.0"],
                 "capabilities": ["experimentalApi": true]
             ])
+            armTimeout(for: initializeRequestID!)
         }
     }
 
@@ -169,7 +203,18 @@ final class CodexAppServerUsageDataSource: LiveUsageDataSource {
         }
         return try await withCheckedThrowingContinuation { continuation in
             rateLimitsContinuation = continuation
-            send(method: "account/rateLimits/read", params: nil)
+            rateLimitsRequestID = send(method: "account/rateLimits/read", params: nil)
+            armTimeout(for: rateLimitsRequestID!)
+        }
+    }
+
+    private func armTimeout(for id: Int) {
+        timeoutTask?.cancel()
+        timeoutTask = Task { [weak self, requestTimeout] in
+            try? await Task.sleep(for: requestTimeout)
+            guard !Task.isCancelled, let self,
+                  self.initializeRequestID == id || self.rateLimitsRequestID == id else { return }
+            self.resetProcess(with: AppServerError.timedOut)
         }
     }
 
@@ -202,6 +247,12 @@ final class CodexAppServerUsageDataSource: LiveUsageDataSource {
 
     private func handleResponse(id: Int, message: [String: Any]) {
         if id == initializeRequestID {
+            if message["error"] != nil || message["result"] == nil {
+                resetProcess(with: AppServerError.requestRejected)
+                return
+            }
+            timeoutTask?.cancel()
+            timeoutTask = nil
             isInitialized = true
             initializeRequestID = nil
             let continuations = initializationContinuations
@@ -211,10 +262,14 @@ final class CodexAppServerUsageDataSource: LiveUsageDataSource {
             return
         }
 
-        guard let continuation = rateLimitsContinuation else { return }
+        guard id == rateLimitsRequestID, let continuation = rateLimitsContinuation else { return }
+        timeoutTask?.cancel()
+        timeoutTask = nil
         rateLimitsContinuation = nil
+        rateLimitsRequestID = nil
 
         do {
+            if message["error"] != nil { throw AppServerError.requestRejected }
             guard let result = message["result"] as? [String: Any] else {
                 throw AppServerError.invalidMessage
             }
@@ -224,7 +279,7 @@ final class CodexAppServerUsageDataSource: LiveUsageDataSource {
         }
     }
 
-    private func makeSnapshot(from result: [String: Any]) throws -> CodexUsageSnapshot {
+    func makeSnapshot(from result: [String: Any]) throws -> CodexUsageSnapshot {
         let allLimits = result["rateLimitsByLimitId"] as? [String: Any]
         let selected = (allLimits?["codex"] as? [String: Any]) ?? (result["rateLimits"] as? [String: Any])
         guard let selected,
@@ -235,8 +290,41 @@ final class CodexAppServerUsageDataSource: LiveUsageDataSource {
             shortTerm: primary,
             longTerm: usageWindow(selected["secondary"]),
             updatedAt: .now,
-            sourceDescription: "Codex CLI (local, live)"
+            sourceDescription: "Codex CLI (local, live)",
+            rateLimitResetCredits: resetCreditsSummary(result["rateLimitResetCredits"]),
+            accountID: result["accountId"] as? String,
+            ordinaryUsageAllowed: result["ordinaryUsageAllowed"] as? Bool
         )
+    }
+
+    private func resetCreditsSummary(_ value: Any?) -> RateLimitResetCreditsSummary? {
+        guard let value = value as? [String: Any],
+              let availableCount = exactNonnegativeInteger(value["availableCount"]) else { return nil }
+        let credits = (value["credits"] as? [Any])?.compactMap { item -> RateLimitResetCredit? in
+            guard let item = item as? [String: Any],
+                  let id = item["id"] as? String,
+                  let resetType = item["resetType"] as? String,
+                  let status = item["status"] as? String else { return nil }
+            let expiresAt: Date?
+            if let timestamp = item["expiresAt"], !(timestamp is NSNull) {
+                guard let seconds = exactNonnegativeInteger(timestamp) else { return nil }
+                expiresAt = Date(timeIntervalSince1970: TimeInterval(seconds))
+            } else {
+                expiresAt = nil
+            }
+            return RateLimitResetCredit(id: id, resetType: resetType, status: status, expiresAt: expiresAt)
+        }
+        return RateLimitResetCreditsSummary(availableCount: availableCount, credits: credits)
+    }
+
+    private func exactNonnegativeInteger(_ value: Any?) -> Int? {
+        guard let number = value as? NSNumber,
+              CFGetTypeID(number) != CFBooleanGetTypeID(),
+              number.doubleValue.isFinite,
+              number.doubleValue >= 0,
+              number.doubleValue < Double(Int.max),
+              number.doubleValue.rounded(.towardZero) == number.doubleValue else { return nil }
+        return number.intValue
     }
 
     private func usageWindow(_ value: Any?) -> UsageWindow? {
@@ -279,24 +367,9 @@ final class CodexAppServerUsageDataSource: LiveUsageDataSource {
         }
     }
 
-    private func didStop(with error: Error) {
-        guard process != nil else { return }
-        output?.readabilityHandler = nil
-        output = nil
-        outputBuffer.removeAll(keepingCapacity: false)
-        input = nil
-        process = nil
-        isInitialized = false
-        initializeRequestID = nil
-        let continuations = initializationContinuations
-        initializationContinuations.removeAll()
-        continuations.forEach { $0.resume(throwing: error) }
-        rateLimitsContinuation?.resume(throwing: error)
-        rateLimitsContinuation = nil
-    }
 }
 
-private struct RemoteUsagePayload: Decodable {
+struct RemoteUsagePayload: Decodable {
     let shortTerm: UsageWindow
     let longTerm: UsageWindow?
     let updatedAt: Date

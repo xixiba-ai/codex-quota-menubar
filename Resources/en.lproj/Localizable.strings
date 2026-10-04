@@ -25,7 +25,7 @@
 "“自动刷新额度”和“重置概率预测”默认关闭，可在了解功能后按需开启。" = "“Scheduled Requests” and “Reset Forecast” are off by default. Enable them if useful after reading what they do.";
 "下一次计划触发：{0}" = "Next trigger: {0}";
 "下一次计划触发：—" = "Next trigger: —";
-"不能保证。该功能只会按时间发起一次最小 Codex 请求，实际额度与重置由服务决定。只想更新显示时，使用“立即刷新”即可。" = "There is no guarantee. This feature only sends a minimal Codex request at the scheduled time; the service controls quota and resets. To update the display, use “Refresh Now”.";
+"不能保证。实际额度与重置由服务决定；开启后会按时间以及在检测到额度恢复时使用一次。只想更新显示时，使用“立即刷新”即可。" = "There is no guarantee. The service controls quota and resets. When enabled, the app sends one request at scheduled times and on detected quota recovery. To update the display, use “Refresh Now”.";
 "为什么找不到之前的会话？" = "Why can't I find an earlier session?";
 "为什么百分比没变，或只显示一个周期？" = "Why is the percentage unchanged, or only one window shown?";
 "从菜单栏查看 Codex 额度，找回最近的工作。" = "Check Codex quota from the menu bar and find your recent work.";
@@ -69,7 +69,7 @@
 "帮助主题" = "Help topic";
 "常见问题" = "FAQ";
 "开启" = "On";
-"开启“自动刷新额度”后，会在设定时间发起一次实际的最小 Codex 请求，可能消耗少量额度；它不会增加或保证重置额度。" = "Enabling “Scheduled Requests” sends a real, minimal Codex request at each trigger time. It may use a small amount of quota and does not increase quota or guarantee a reset.";
+"开启“自动刷新额度”后，会在设定时间，以及检测到主动或官方重置后的额度恢复时，发起一次最小 Codex 请求，可能消耗少量额度。" = "Enabling “Scheduled Requests” sends a minimal Codex request at scheduled times and when quota recovery after a manual or service reset is detected. It may use a small amount of quota.";
 "开启后，会从 willcodexquotareset.com 获取未来 48 小时的第三方重置概率，随主动额度刷新更新。它是估算，不是官方重置承诺。" = "When enabled, willcodexquotareset.com supplies a third-party estimate of a reset in the next 48 hours, updated with active quota checks. It is an estimate, not an official reset commitment.";
 "开启自动刷新额度" = "Enable Scheduled Requests";
 "开启自动刷新，能恢复用完的额度吗？" = "Can scheduled requests restore exhausted quota?";
@@ -195,3 +195,24 @@
 "查看新版本并手动下载" = "View release and download manually";
 "无法检查更新，请稍后重试。" = "Could not check for updates. Try again later.";
 "仅在点击“检查更新”时访问公开的 GitHub 发布列表（含预览版）。" = "The public GitHub releases list (including previews) is checked only when you click Check for Updates.";
+"正在刷新…" = "Refreshing…";
+"额度刷新失败：{0}" = "Quota refresh failed: {0}";
+"额度刷新成功 · {0}" = "Quota refreshed · {0}";
+"打开第三方估算网站？" = "Open the Third-Party Forecast Website?";
+"将在默认浏览器中打开 https://www.willcodexquotareset.com/。该网站提供第三方估算，并非官方重置承诺。" = "Open https://www.willcodexquotareset.com/ in your default browser. This website provides third-party estimates, not an official reset commitment.";
+"打开网站" = "Open Website";
+"Codex CLI 响应超时，请重试" = "Codex CLI response timed out. Please try again.";
+"Codex CLI 拒绝了额度请求" = "Codex CLI rejected the quota request.";
+"使用限额重置：数据未提供" = "Usage limit resets: unavailable";
+"使用限额重置：剩余 {0} 次" = "Usage limit resets: {0} remaining";
+"最近到期：{0}" = "Next expiry: {0}";
+"已知最近到期：{0}" = "Earliest known expiry: {0}";
+"无到期限制" = "No expiration";
+"到期时间未提供" = "Expiration not provided";
+
+"Codex CLI 拒绝了会话请求（{0}）：{1}" = "Codex CLI rejected the session request ({0}): {1}";
+"会话仍被 Codex 或其他客户端占用。请先在对应客户端关闭该会话，再重试删除。" = "This session is still in use by Codex or another client. Close it in that client, then try deleting it again.";
+"删除会话？" = "Delete Session?";
+"若会话仍被其他客户端占用，请先关闭该会话再删除。" = "If another client is using this session, close it there before deleting it.";
+"重置后随本机额度推送或下一次 60 秒读取检测恢复；重复读取不会重复使用。首次读取和切换账号只建立基线。" = "Recovery is detected through local quota updates or the next 60-second read. Repeated reads do not send duplicate requests. The first read and account changes only establish a baseline.";
+"额度恢复后使用" = "Use after quota recovery";

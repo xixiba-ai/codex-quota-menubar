@@ -160,7 +160,7 @@ struct SessionBrowserView: View {
             Alert(
                 title: Text(request.title),
                 message: Text(request.message),
-                primaryButton: .destructive(Text(L10n.tr("终止并删除"))) {
+                primaryButton: .destructive(Text(L10n.tr("删除"))) {
                     Task {
                         let didDelete = await store.delete(request.sessions)
                         if didDelete, let selectedSession,
@@ -232,7 +232,7 @@ private struct SessionDetail: View {
                 .help(copied ? L10n.tr("已复制续接命令") : L10n.tr("复制续接命令"))
                 .accessibilityLabel(copied ? L10n.tr("已复制续接命令") : L10n.tr("复制续接命令"))
                 Button(L10n.tr("打开项目目录"), action: openProject)
-                Button(session.status.isActive ? L10n.tr("终止并删除会话…") : L10n.tr("删除会话…"), role: .destructive, action: deleteSession)
+                Button(L10n.tr("删除会话…"), role: .destructive, action: deleteSession)
             }
             Text(L10n.tr("在终端打开所选会话；复制按钮可手动运行命令。"))
                 .font(.caption)
@@ -258,7 +258,7 @@ private struct DeletionRequest: Identifiable {
 
     var title: String {
         switch kind {
-        case .single: L10n.tr("终止并删除会话？")
+        case .single: L10n.tr("删除会话？")
         case .batch(let days): L10n.tr("删除超过 \(days) 天的会话？")
         }
     }
@@ -267,7 +267,7 @@ private struct DeletionRequest: Identifiable {
         switch kind {
         case .single:
             let session = sessions[0]
-            return L10n.tr("“\(session.displayTitle.confirmationExcerpt)”及其派生会话将被永久删除，无法恢复。\(session.status.isActive ? L10n.tr("该会话当前正在运行，会被终止。") : "")")
+            return L10n.tr("“\(session.displayTitle.confirmationExcerpt)”及其派生会话将被永久删除，无法恢复。\(L10n.tr("若会话仍被其他客户端占用，请先关闭该会话再删除。"))")
         case .batch(let days):
             return L10n.tr("将永久删除 \(sessions.count) 个最后活跃于 \(days) 天前的非活跃会话及其派生会话，无法恢复。正在运行的会话不会受影响。")
         }

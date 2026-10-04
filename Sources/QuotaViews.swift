@@ -95,6 +95,9 @@ struct QuotaMenuContent: View {
 
             if let snapshot = store.snapshot {
                 DetailRow(title: snapshot.hasOnlyLongTermWindow ? L10n.tr("长期") : L10n.tr("短周期"), window: snapshot.shortTerm, resetText: snapshot.hasOnlyLongTermWindow ? L10n.tr("重置于 \(TimeFormatter.fullDate(snapshot.shortTerm.resetsAt))") : L10n.tr("剩余 \(TimeFormatter.remaining(snapshot.shortTerm.resetsAt))"))
+                Text(ResetCreditsFormatter.summary(snapshot.rateLimitResetCredits))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 if let longTerm = snapshot.longTerm {
                     DetailRow(title: L10n.tr("长期"), window: longTerm, resetText: L10n.tr("重置于 \(TimeFormatter.fullDate(longTerm.resetsAt))"))
                 }
@@ -131,8 +134,9 @@ struct QuotaMenuContent: View {
             Divider()
             HStack {
                 Button { Task { await store.refresh() } } label: {
-                    Label(L10n.tr("立即刷新"), systemImage: "arrow.clockwise")
+                    Label(store.isRefreshing ? L10n.tr("正在刷新…") : L10n.tr("立即刷新"), systemImage: "arrow.clockwise")
                 }
+                .disabled(store.isRefreshing)
                 .keyboardShortcut("r")
                 Spacer()
                 Button(L10n.tr("退出")) { NSApplication.shared.terminate(nil) }
@@ -183,5 +187,24 @@ enum TimeFormatter {
 
     static func fullDate(_ date: Date) -> String {
         date.formatted(.dateTime.month(.wide).day().hour().minute().locale(L10n.locale))
+    }
+}
+
+/// Reset credits are a separate entitlement from a usage window's automatic reset.
+enum ResetCreditsFormatter {
+    static func summary(_ summary: RateLimitResetCreditsSummary?) -> String {
+        guard let summary else { return L10n.tr("使用限额重置：数据未提供") }
+        let count = L10n.tr("使用限额重置：剩余 \(summary.availableCount) 次")
+        guard summary.availableCount > 0 else { return count }
+        let expiration: String
+        if let date = summary.earliestKnownExpiration {
+            let formatted = date.formatted(.dateTime.year().month(.wide).day().hour().minute().locale(L10n.locale))
+            expiration = summary.hasCompleteDetails
+                ? L10n.tr("最近到期：\(formatted)")
+                : L10n.tr("已知最近到期：\(formatted)")
+        } else {
+            expiration = summary.hasCompleteDetails ? L10n.tr("无到期限制") : L10n.tr("到期时间未提供")
+        }
+        return count + " · " + expiration
     }
 }

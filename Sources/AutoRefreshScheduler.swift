@@ -15,6 +15,7 @@ struct AutoRefreshState: Codable, Equatable {
     var pendingQuotaResetRetryTime: Date?
 
     /// An internal, persisted id that makes a schedule window idempotent across restarts.
+    var lastSuccessfulTriggerTime: Date?
     var lastHandledWindowID: String?
     /// Minutes after midnight at which an automatic refresh should run.
     var triggerMinutes: [Int]
@@ -29,6 +30,7 @@ struct AutoRefreshState: Codable, Equatable {
         missedTriggerCount: Int = 0,
         pendingQuotaResetRetryTime: Date? = nil,
         lastHandledWindowID: String? = nil,
+        lastSuccessfulTriggerTime: Date? = nil,
         triggerMinutes: [Int] = AutoRefreshSchedule.defaultTriggerMinutes
     ) {
         self.autoRefreshEnabled = autoRefreshEnabled
@@ -39,6 +41,7 @@ struct AutoRefreshState: Codable, Equatable {
         self.lastFailureKind = lastFailureKind
         self.missedTriggerCount = missedTriggerCount
         self.pendingQuotaResetRetryTime = pendingQuotaResetRetryTime
+        self.lastSuccessfulTriggerTime = lastSuccessfulTriggerTime
         self.lastHandledWindowID = lastHandledWindowID
         self.triggerMinutes = AutoRefreshSchedule.normalizedTriggerMinutes(triggerMinutes)
             ?? AutoRefreshSchedule.defaultTriggerMinutes
@@ -47,7 +50,7 @@ struct AutoRefreshState: Codable, Equatable {
     private enum CodingKeys: String, CodingKey {
         case autoRefreshEnabled, lastTriggerTime, nextTriggerTime, lastTriggerResult
         case lastTriggerReason, lastFailureKind
-        case missedTriggerCount, pendingQuotaResetRetryTime, lastHandledWindowID, triggerMinutes
+        case missedTriggerCount, pendingQuotaResetRetryTime, lastHandledWindowID, triggerMinutes, lastSuccessfulTriggerTime
     }
 
     init(from decoder: Decoder) throws {
@@ -62,6 +65,7 @@ struct AutoRefreshState: Codable, Equatable {
             missedTriggerCount: try container.decodeIfPresent(Int.self, forKey: .missedTriggerCount) ?? 0,
             pendingQuotaResetRetryTime: try container.decodeIfPresent(Date.self, forKey: .pendingQuotaResetRetryTime),
             lastHandledWindowID: try container.decodeIfPresent(String.self, forKey: .lastHandledWindowID),
+            lastSuccessfulTriggerTime: try container.decodeIfPresent(Date.self, forKey: .lastSuccessfulTriggerTime),
             triggerMinutes: try container.decodeIfPresent([Int].self, forKey: .triggerMinutes)
                 ?? AutoRefreshSchedule.defaultTriggerMinutes
         )
@@ -122,6 +126,7 @@ enum AutoRefreshTriggerReason: String, Codable, Equatable {
     case launchCompensation = "启动补偿"
     case clockChangeCompensation = "时间变更补偿"
     case quotaResetRetry = "额度重置后重试"
+    case quotaRecovery = "额度恢复后使用"
 
     var localizedText: String {
         switch self {
@@ -130,6 +135,7 @@ enum AutoRefreshTriggerReason: String, Codable, Equatable {
         case .launchCompensation: L10n.tr("启动补偿")
         case .clockChangeCompensation: L10n.tr("时间变更补偿")
         case .quotaResetRetry: L10n.tr("额度重置后重试")
+        case .quotaRecovery: L10n.tr("额度恢复后使用")
         }
     }
 }
@@ -276,7 +282,12 @@ final class AutoRefreshScheduler: ObservableObject {
     private var wakeObserver: NSObjectProtocol?
     private var clockChangeObserver: NSObjectProtocol?
     private var isStarted = false
+    private var isStopped = false
     private var isTriggering = false
+    private var quotaBaseline: CodexUsageSnapshot?
+    private var pendingRecoveryTime: Date?
+    private var pendingRecoveryObservedAt: Date?
+    private var lifecycleGeneration = 0
 
     init(
         stateStore: AutoRefreshStateStore = AutoRefreshStateStore(),
@@ -303,14 +314,21 @@ final class AutoRefreshScheduler: ObservableObject {
     func start() {
         guard !isStarted else { return }
         isStarted = true
+        isStopped = false
         observeSystemEvents()
-        guard state.autoRefreshEnabled else { return }
+        guard state.autoRefreshEnabled, !isStopped else { return }
         armQuotaResetRetryTimer()
         Task { await checkForMissedTrigger(at: .now, reason: .launchCompensation) }
     }
 
     func stop() {
         isStarted = false
+        isStopped = true
+        markInterruptedRequest()
+        lifecycleGeneration += 1
+        quotaBaseline = nil
+        pendingRecoveryTime = nil
+        pendingRecoveryObservedAt = nil
         scheduledTimer?.cancel()
         scheduledTimer = nil
         quotaResetRetryTimer?.cancel()
@@ -326,6 +344,13 @@ final class AutoRefreshScheduler: ObservableObject {
     }
 
     func setEnabled(_ enabled: Bool, at date: Date = .now) {
+        if state.autoRefreshEnabled != enabled {
+            markInterruptedRequest()
+            lifecycleGeneration += 1
+            quotaBaseline = nil
+            pendingRecoveryTime = nil
+            pendingRecoveryObservedAt = nil
+        }
         mutateState {
             $0.autoRefreshEnabled = enabled
             $0.nextTriggerTime = enabled
@@ -357,7 +382,7 @@ final class AutoRefreshScheduler: ObservableObject {
     /// Called on launch and wake. Only the newest schedule window can be compensated.
     func checkForMissedTrigger(at date: Date = .now, reason: AutoRefreshTriggerReason) async {
         logger.record(checkTime: date, reason: nil, result: nil, error: nil)
-        guard state.autoRefreshEnabled else { return }
+        guard state.autoRefreshEnabled, !isStopped else { return }
 
         let window = AutoRefreshSchedule.latestWindow(onOrBefore: date, triggerMinutes: state.triggerMinutes, calendar: calendar)
         guard state.lastHandledWindowID != window.id else {
@@ -371,7 +396,7 @@ final class AutoRefreshScheduler: ObservableObject {
 
     /// The timer supplies the intended date so a delayed fire after sleep is classified correctly.
     func handleScheduledTimer(for scheduledDate: Date, now: Date = .now) async {
-        guard state.autoRefreshEnabled else { return }
+        guard state.autoRefreshEnabled, !isStopped else { return }
         let latestWindow = AutoRefreshSchedule.latestWindow(onOrBefore: now, triggerMinutes: state.triggerMinutes, calendar: calendar)
         guard state.lastHandledWindowID != latestWindow.id else {
             armNextTimer(after: now)
@@ -409,22 +434,88 @@ final class AutoRefreshScheduler: ObservableObject {
         }
     }
 
+    /// Accept only newly read, successful quota snapshots from the data source.
+    func receiveQuotaSnapshot(_ snapshot: CodexUsageSnapshot, now: Date = .now) async {
+        guard state.autoRefreshEnabled, !isStopped, now.timeIntervalSince(snapshot.updatedAt) >= 0,
+              now.timeIntervalSince(snapshot.updatedAt) <= 180 else { return }
+        guard let previous = quotaBaseline else {
+            quotaBaseline = snapshot
+            mutateState { $0.lastSuccessfulTriggerTime = nil }
+            return
+        }
+        guard snapshot.updatedAt > previous.updatedAt else { return }
+        guard previous.sourceDescription == snapshot.sourceDescription,
+              previous.accountID == snapshot.accountID else {
+            quotaBaseline = snapshot
+            pendingRecoveryTime = nil
+            pendingRecoveryObservedAt = nil
+            markInterruptedRequest()
+            lifecycleGeneration += 1
+            mutateState {
+                $0.lastSuccessfulTriggerTime = nil
+                $0.pendingQuotaResetRetryTime = nil
+            }
+            armNextTimer(after: now)
+            armQuotaResetRetryTimer()
+            return
+        }
+        quotaBaseline = snapshot
+        guard (previous.longTerm == nil) == (snapshot.longTerm == nil) else { return }
+        func recovered(_ old: UsageWindow, _ new: UsageWindow) -> Bool {
+            guard old.windowDurationMinutes == new.windowDurationMinutes else { return false }
+            let gain = new.clampedPercent - old.clampedPercent
+            return gain > 0 && (old.clampedPercent == 0 || new.clampedPercent == 100 ||
+                (old.resetsAt <= snapshot.updatedAt && new.resetsAt.timeIntervalSince(old.resetsAt) >= 60))
+        }
+        func boundary(_ old: UsageWindow, _ new: UsageWindow) -> Date? {
+            guard recovered(old, new) else { return nil }
+            var boundaries: [Date] = []
+            if old.resetsAt > previous.updatedAt && old.resetsAt <= snapshot.updatedAt {
+                boundaries.append(old.resetsAt)
+            }
+            if new.resetsAt > old.resetsAt, let duration = new.windowDurationMinutes {
+                let start = new.resetsAt.addingTimeInterval(-Double(duration) * 60)
+                if start > previous.updatedAt && start <= snapshot.updatedAt { boundaries.append(start) }
+            }
+            return boundaries.max() ?? snapshot.updatedAt
+        }
+        let boundaries = [boundary(previous.shortTerm, snapshot.shortTerm),
+            previous.longTerm.flatMap { old in snapshot.longTerm.flatMap { boundary(old, $0) } }].compactMap { $0 }
+        if let recoveryBoundary = boundaries.max() {
+            if state.lastSuccessfulTriggerTime.map({ $0 >= recoveryBoundary }) != true {
+                pendingRecoveryTime = max(pendingRecoveryTime ?? recoveryBoundary, recoveryBoundary)
+            }
+        }
+        if pendingRecoveryTime != nil { pendingRecoveryObservedAt = now }
+        await drainPendingRecovery()
+    }
+
+    private func drainPendingRecovery() async {
+        guard state.autoRefreshEnabled, !isStopped, !isTriggering, let time = pendingRecoveryTime,
+              let baseline = quotaBaseline, baseline.ordinaryUsageAllowed != false,
+              baseline.shortTerm.clampedPercent > 0,
+              baseline.longTerm.map({ $0.clampedPercent > 0 }) ?? true else { return }
+        pendingRecoveryTime = nil
+        let requestTime = max(time, pendingRecoveryObservedAt ?? baseline.updatedAt)
+        pendingRecoveryObservedAt = nil
+        let window = AutoRefreshSchedule.latestWindow(onOrBefore: requestTime, triggerMinutes: state.triggerMinutes, calendar: calendar)
+        await trigger(window: window, reason: .quotaRecovery, isCompensation: false, checkTime: requestTime)
+    }
+
     private func trigger(
         window: AutoRefreshScheduleWindow,
         reason: AutoRefreshTriggerReason,
         isCompensation: Bool,
         checkTime: Date
     ) async {
-        guard !isTriggering else { return }
+        guard state.autoRefreshEnabled, !isStopped, !isTriggering else { return }
         isTriggering = true
-        defer {
-            isTriggering = false
-            armNextTimer(after: checkTime)
-        }
-
-        // Persist before the request. A relaunch or a second wake event cannot duplicate this window.
+        let generation = lifecycleGeneration
+        quotaResetRetryTimer?.cancel()
+        quotaResetRetryTimer = nil
         mutateState {
             $0.lastHandledWindowID = window.id
+            $0.pendingQuotaResetRetryTime = nil
             $0.lastTriggerTime = checkTime
             $0.lastTriggerResult = .inProgress
             $0.lastTriggerReason = reason
@@ -432,63 +523,46 @@ final class AutoRefreshScheduler: ObservableObject {
             if isCompensation { $0.missedTriggerCount += 1 }
         }
         logger.record(checkTime: checkTime, reason: reason, result: .inProgress, error: nil)
-
         do {
             try await trigger.trigger()
-            mutateState {
-                $0.lastTriggerResult = .succeeded
-                $0.pendingQuotaResetRetryTime = nil
+            if generation == lifecycleGeneration {
+                mutateState {
+                    $0.lastTriggerResult = .succeeded
+                    $0.lastSuccessfulTriggerTime = checkTime
+                }
+                if let recoveryTime = pendingRecoveryTime, recoveryTime <= checkTime {
+                    pendingRecoveryTime = nil
+                }
+                logger.record(checkTime: Date.now, reason: reason, result: .succeeded, error: nil)
             }
-            logger.record(checkTime: Date.now, reason: reason, result: .succeeded, error: nil)
         } catch {
-            mutateState {
-                $0.lastTriggerResult = .failed
-                $0.lastFailureKind = AutoRefreshFailureKind(error: error)
+            if generation == lifecycleGeneration {
+                mutateState {
+                    $0.lastTriggerResult = .failed
+                    $0.lastFailureKind = AutoRefreshFailureKind(error: error)
+                }
+                logger.record(checkTime: Date.now, reason: reason, result: .failed, error: error)
+                scheduleQuotaResetRetry(after: error, currentTime: checkTime)
             }
-            logger.record(checkTime: Date.now, reason: reason, result: .failed, error: error)
-            scheduleQuotaResetRetry(after: error, currentTime: checkTime)
         }
+        isTriggering = false
+        if generation == lifecycleGeneration, state.autoRefreshEnabled, !isStopped {
+            armNextTimer(after: checkTime)
+            armQuotaResetRetryTimer()
+        }
+        if state.autoRefreshEnabled, !isStopped { await drainPendingRecovery() }
     }
 
     /// Invoked by the one-off timer created from Codex's "try again at …" response.
     func handleQuotaResetRetryTimer(now: Date = .now) async {
-        guard state.autoRefreshEnabled,
+        guard state.autoRefreshEnabled, !isStopped,
               let retryTime = state.pendingQuotaResetRetryTime else { return }
         guard retryTime <= now else {
             armQuotaResetRetryTimer()
             return
         }
-        guard !isTriggering else { return }
-
-        isTriggering = true
-        defer {
-            isTriggering = false
-            armNextTimer(after: now)
-            armQuotaResetRetryTimer()
-        }
-
-        // Clear before the request so a relaunch cannot start the same retry twice.
-        mutateState {
-            $0.pendingQuotaResetRetryTime = nil
-            $0.lastTriggerTime = now
-            $0.lastTriggerResult = .inProgress
-            $0.lastTriggerReason = .quotaResetRetry
-            $0.lastFailureKind = nil
-        }
-        logger.record(checkTime: now, reason: .quotaResetRetry, result: .inProgress, error: nil)
-
-        do {
-            try await trigger.trigger()
-            mutateState { $0.lastTriggerResult = .succeeded }
-            logger.record(checkTime: Date.now, reason: .quotaResetRetry, result: .succeeded, error: nil)
-        } catch {
-            mutateState {
-                $0.lastTriggerResult = .failed
-                $0.lastFailureKind = AutoRefreshFailureKind(error: error)
-            }
-            logger.record(checkTime: Date.now, reason: .quotaResetRetry, result: .failed, error: error)
-            scheduleQuotaResetRetry(after: error, currentTime: now)
-        }
+        let window = AutoRefreshSchedule.latestWindow(onOrBefore: now, triggerMinutes: state.triggerMinutes, calendar: calendar)
+        await trigger(window: window, reason: .quotaResetRetry, isCompensation: false, checkTime: now)
     }
 
     private func scheduleQuotaResetRetry(after error: Error, currentTime: Date) {
@@ -503,10 +577,11 @@ final class AutoRefreshScheduler: ObservableObject {
     }
 
     private func armNextTimer(after date: Date) {
+        guard state.autoRefreshEnabled, !isStopped else { return }
         let next = AutoRefreshSchedule.nextWindow(after: date, triggerMinutes: state.triggerMinutes, calendar: calendar)
         let nextVisibleTrigger = state.pendingQuotaResetRetryTime.map { min($0, next.date) } ?? next.date
         mutateState { $0.nextTriggerTime = nextVisibleTrigger }
-        guard armsTimers, state.autoRefreshEnabled else { return }
+        guard armsTimers, state.autoRefreshEnabled, !isStopped else { return }
 
         scheduledTimer?.cancel()
         let timer = DispatchSource.makeTimerSource(queue: .main)
@@ -524,7 +599,7 @@ final class AutoRefreshScheduler: ObservableObject {
     private func armQuotaResetRetryTimer() {
         quotaResetRetryTimer?.cancel()
         quotaResetRetryTimer = nil
-        guard armsTimers, state.autoRefreshEnabled,
+        guard armsTimers, state.autoRefreshEnabled, !isStopped,
               let retryTime = state.pendingQuotaResetRetryTime else { return }
 
         let timer = DispatchSource.makeTimerSource(queue: .main)
@@ -534,6 +609,14 @@ final class AutoRefreshScheduler: ObservableObject {
         }
         quotaResetRetryTimer = timer
         timer.resume()
+    }
+
+    private func markInterruptedRequest() {
+        guard state.lastTriggerResult == .inProgress else { return }
+        mutateState {
+            $0.lastTriggerResult = .failed
+            $0.lastFailureKind = .interrupted
+        }
     }
 
     private func mutateState(_ mutation: (inout AutoRefreshState) -> Void) {

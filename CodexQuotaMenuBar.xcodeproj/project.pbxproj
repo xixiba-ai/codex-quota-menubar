@@ -32,6 +32,7 @@
 		A10000000000000000000027 /* AppUpdateCheckerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000027; };
 		A10000000000000000000028 /* QuotaFreshnessTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000028; };
 		A10000000000000000000029 /* DocumentationSnapshots.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000029; };
+		A10000000000000000000030 /* CodexSessionDataSourceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000030; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -68,6 +69,7 @@
 		A20000000000000000000027 /* AppUpdateCheckerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdateCheckerTests.swift; sourceTree = "<group>"; };
 		A20000000000000000000028 /* QuotaFreshnessTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuotaFreshnessTests.swift; sourceTree = "<group>"; };
 		A20000000000000000000029 /* DocumentationSnapshots.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DocumentationSnapshots.swift; sourceTree = "<group>"; };
+		A20000000000000000000030 /* CodexSessionDataSourceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexSessionDataSourceTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXVariantGroup section */
@@ -78,7 +80,7 @@
 		A30000000000000000000001 = {isa = PBXGroup; children = (A30000000000000000000005, A30000000000000000000002 /* Sources */, A30000000000000000000004 /* Tests */, A20000000000000000000007 /* Assets.xcassets */, A30000000000000000000003 /* Products */); sourceTree = "<group>"; };
 		A30000000000000000000002 /* Sources */ = {isa = PBXGroup; children = (A20000000000000000000026, A20000000000000000000025, A20000000000000000000019, A20000000000000000000001 /* CodexQuotaMenuBarApp.swift */, A20000000000000000000002 /* UsageModels.swift */, A20000000000000000000003 /* UsageDataSource.swift */, A20000000000000000000004 /* QuotaStore.swift */, A20000000000000000000005 /* QuotaViews.swift */, A20000000000000000000008 /* AutoRefreshScheduler.swift */, A20000000000000000000009 /* CodexCLIRefreshTrigger.swift */, A20000000000000000000023 /* CodexTerminalResumeLauncher.swift */, A20000000000000000000012 /* CodexSessionModels.swift */, A20000000000000000000013 /* CodexSessionDataSource.swift */, A20000000000000000000014 /* SessionStore.swift */, A20000000000000000000015 /* SessionBrowserView.swift */, A20000000000000000000016 /* ResetForecast.swift */, A20000000000000000000018 /* QuotaHelpView.swift */); path = Sources; sourceTree = "<group>"; };
 		A30000000000000000000003 /* Products */ = {isa = PBXGroup; children = (A20000000000000000000006 /* Codex Quota.app */, A20000000000000000000011 /* CodexQuotaMenuBarTests.xctest */); name = Products; sourceTree = "<group>"; };
-		A30000000000000000000004 /* Tests */ = {isa = PBXGroup; children = (A20000000000000000000029, A20000000000000000000028, A20000000000000000000027, A20000000000000000000020, A20000000000000000000010 /* AutoRefreshSchedulerTests.swift */, A20000000000000000000017 /* ResetForecastTests.swift */, A20000000000000000000024 /* CodexTerminalResumeLauncherTests.swift */); path = Tests; sourceTree = "<group>"; };
+		A30000000000000000000004 /* Tests */ = {isa = PBXGroup; children = (A20000000000000000000030, A20000000000000000000029, A20000000000000000000028, A20000000000000000000027, A20000000000000000000020, A20000000000000000000010 /* AutoRefreshSchedulerTests.swift */, A20000000000000000000017 /* ResetForecastTests.swift */, A20000000000000000000024 /* CodexTerminalResumeLauncherTests.swift */); path = Tests; sourceTree = "<group>"; };
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -100,7 +102,7 @@
 
 /* Begin PBXSourcesBuildPhase section */
 		A60000000000000000000001 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000026, A10000000000000000000025, A10000000000000000000019, A10000000000000000000001 /* CodexQuotaMenuBarApp.swift in Sources */, A10000000000000000000002 /* UsageModels.swift in Sources */, A10000000000000000000003 /* UsageDataSource.swift in Sources */, A10000000000000000000004 /* QuotaStore.swift in Sources */, A10000000000000000000005 /* QuotaViews.swift in Sources */, A10000000000000000000007 /* AutoRefreshScheduler.swift in Sources */, A10000000000000000000008 /* CodexCLIRefreshTrigger.swift in Sources */, A10000000000000000000022 /* CodexTerminalResumeLauncher.swift in Sources */, A10000000000000000000010 /* CodexSessionModels.swift in Sources */, A10000000000000000000011 /* CodexSessionDataSource.swift in Sources */, A10000000000000000000012 /* SessionStore.swift in Sources */, A10000000000000000000013 /* SessionBrowserView.swift in Sources */, A10000000000000000000014 /* ResetForecast.swift in Sources */, A10000000000000000000016 /* QuotaHelpView.swift in Sources */); runOnlyForDeploymentPostprocessing = 0; };
-		A60000000000000000000004 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000029, A10000000000000000000028, A10000000000000000000027, A10000000000000000000020, A10000000000000000000009 /* AutoRefreshSchedulerTests.swift in Sources */, A10000000000000000000015 /* ResetForecastTests.swift in Sources */, A10000000000000000000023 /* CodexTerminalResumeLauncherTests.swift in Sources */); runOnlyForDeploymentPostprocessing = 0; };
+		A60000000000000000000004 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000030, A10000000000000000000029, A10000000000000000000028, A10000000000000000000027, A10000000000000000000020, A10000000000000000000009 /* AutoRefreshSchedulerTests.swift in Sources */, A10000000000000000000015 /* ResetForecastTests.swift in Sources */, A10000000000000000000023 /* CodexTerminalResumeLauncherTests.swift in Sources */); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXFrameworksBuildPhase section */

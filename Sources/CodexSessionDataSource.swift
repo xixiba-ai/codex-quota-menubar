@@ -6,12 +6,20 @@ final class CodexSessionDataSource {
         case executableNotFound
         case invalidMessage
         case processStopped
+        case requestFailed(code: Int, message: String)
 
         var errorDescription: String? {
             switch self {
-            case .executableNotFound: L10n.tr("未找到 Codex CLI；请先安装并登录 Codex")
-            case .invalidMessage: L10n.tr("Codex CLI 返回了无法识别的会话数据")
-            case .processStopped: L10n.tr("Codex CLI 本地会话服务已停止")
+            case .executableNotFound: return L10n.tr("未找到 Codex CLI；请先安装并登录 Codex")
+            case .invalidMessage: return L10n.tr("Codex CLI 返回了无法识别的会话数据")
+            case .processStopped: return L10n.tr("Codex CLI 本地会话服务已停止")
+            case let .requestFailed(code, message):
+                if code == -32600,
+                   message.hasPrefix("thread "),
+                   message.hasSuffix(" already has an active writer") {
+                    return L10n.tr("会话仍被 Codex 或其他客户端占用。请先在对应客户端关闭该会话，再重试删除。")
+                }
+                return L10n.tr("Codex CLI 拒绝了会话请求（\(code)）：\(message)")
             }
         }
     }
@@ -133,12 +141,26 @@ final class CodexSessionDataSource {
             guard let message = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any],
                   let id = message["id"] as? Int,
                   let continuation = responseContinuations.removeValue(forKey: id) else { continue }
-            guard let result = message["result"] as? [String: Any] else {
-                continuation.resume(throwing: Error.invalidMessage)
-                continue
+            do {
+                continuation.resume(returning: try Self.decodeResponse(message))
+            } catch {
+                continuation.resume(throwing: error)
             }
-            continuation.resume(returning: result)
         }
+    }
+
+    /// JSON-RPC failures are valid responses, not malformed session data.
+    static func decodeResponse(_ message: [String: Any]) throws -> [String: Any] {
+        if let error = message["error"] as? [String: Any],
+           let code = error["code"] as? Int,
+           let description = error["message"] as? String {
+            throw Error.requestFailed(code: code, message: description)
+        }
+        guard message["error"] == nil,
+              let result = message["result"] as? [String: Any] else {
+            throw Error.invalidMessage
+        }
+        return result
     }
 
     @discardableResult

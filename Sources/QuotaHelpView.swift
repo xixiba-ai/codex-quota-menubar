@@ -157,7 +157,9 @@ struct QuotaHelpView: View {
         VStack(alignment: .leading, spacing: 14) {
             helpCard("arrow.clockwise", title: L10n.tr("读取额度与自动刷新额度")) {
                 Text(L10n.tr("“立即刷新”和每 60 秒的自动读取用于更新额度显示，不会发起对话任务。"))
-                Text(L10n.tr("开启“自动刷新额度”后，会在设定时间发起一次实际的最小 Codex 请求，可能消耗少量额度；它不会增加或保证重置额度。"))
+                Text(L10n.tr("开启“自动刷新额度”后，会在设定时间，以及检测到主动或官方重置后的额度恢复时，发起一次最小 Codex 请求，可能消耗少量额度。"))
+                Text(L10n.tr("重置后随本机额度推送或下一次 60 秒读取检测恢复；重复读取不会重复使用。首次读取和切换账号只建立基线。"))
+                    .foregroundStyle(.secondary)
                 Text(L10n.tr("默认时间：\(AutoRefreshSchedule.formattedTimeList(AutoRefreshSchedule.defaultTriggerMinutes))（本机时间）。在“修改触发时间…”中调整；应用需保持运行，休眠后会补偿最近一个错过的时间点。"))
                     .foregroundStyle(.secondary)
             }
@@ -188,7 +190,7 @@ struct QuotaHelpView: View {
                 Text(L10n.tr("刷新失败时可能保留上次成功读取的数值，请查看菜单中的更新时间。可以在“快速上手”检查连接并查看错误。"))
             }
             question(L10n.tr("开启自动刷新，能恢复用完的额度吗？")) {
-                Text(L10n.tr("不能保证。该功能只会按时间发起一次最小 Codex 请求，实际额度与重置由服务决定。只想更新显示时，使用“立即刷新”即可。"))
+                Text(L10n.tr("不能保证。实际额度与重置由服务决定；开启后会按时间以及在检测到额度恢复时使用一次。只想更新显示时，使用“立即刷新”即可。"))
             }
             question(L10n.tr("为什么找不到之前的会话？")) {
                 Text(L10n.tr("先关闭“最近 7 天”，选择“全部项目”并清空搜索条件，然后刷新会话列表。这里只显示本机可读取的 CLI 和 VS Code 会话，其他设备或未保存在本机的会话不会出现。"))

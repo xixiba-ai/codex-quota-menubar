@@ -68,6 +68,7 @@ final class QuotaStore: ObservableObject {
 
     func stop() {
         refreshTask?.cancel()
+        refreshTask = nil
         (dataSource as? any LiveUsageDataSource)?.stop()
     }
 }

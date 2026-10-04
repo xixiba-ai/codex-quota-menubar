@@ -277,6 +277,192 @@ final class AutoRefreshSchedulerTests: XCTestCase {
         XCTAssertEqual(stateStore.load(), restored)
     }
 
+    private func recoveryScheduler(_ trigger: any CodexRefreshTriggering) -> AutoRefreshScheduler {
+        AutoRefreshScheduler(stateStore: stateStore, trigger: trigger, logger: RecordingLogger(), calendar: calendar, armsTimers: false)
+    }
+
+    private func snapshot(_ percent: Int, at time: Date, reset: Date? = nil, long: Int? = nil, account: String? = "account", allowed: Bool? = nil) -> CodexUsageSnapshot {
+        CodexUsageSnapshot(
+            shortTerm: UsageWindow(remainingPercent: percent, resetsAt: reset ?? date(2026, 7, 11, 15, 30), windowDurationMinutes: 300),
+            longTerm: long.map { UsageWindow(remainingPercent: $0, resetsAt: date(2026, 7, 18, 0, 0), windowDurationMinutes: 10080) },
+            updatedAt: time, sourceDescription: "test", accountID: account, ordinaryUsageAllowed: allowed)
+    }
+
+    func testRecoveryBaselineDuplicateAndManualResetAfterScheduledSuccess() async {
+        let trigger = RecordingTrigger()
+        let scheduler = recoveryScheduler(trigger)
+        let baseline = snapshot(50, at: date(2026, 7, 11, 10, 19))
+        scheduler.setEnabled(true, at: baseline.updatedAt)
+        await scheduler.receiveQuotaSnapshot(baseline, now: baseline.updatedAt)
+        XCTAssertEqual(trigger.callCount, 0)
+        await scheduler.handleScheduledTimer(for: date(2026, 7, 11, 10, 30), now: date(2026, 7, 11, 10, 30))
+        let restored = snapshot(100, at: date(2026, 7, 11, 10, 36))
+        await scheduler.receiveQuotaSnapshot(restored, now: restored.updatedAt)
+        await scheduler.receiveQuotaSnapshot(restored, now: restored.updatedAt)
+        XCTAssertEqual(trigger.callCount, 2)
+        XCTAssertEqual(scheduler.state.lastTriggerReason, .quotaRecovery)
+    }
+
+    func testRollingQuotaAndBlockedSecondaryDoNotTrigger() async {
+        let trigger = RecordingTrigger()
+        let scheduler = recoveryScheduler(trigger)
+        scheduler.setEnabled(true, at: date(2026, 7, 11, 10, 0))
+        await scheduler.receiveQuotaSnapshot(snapshot(40, at: date(2026, 7, 11, 10, 1), long: 0), now: (snapshot(40, at: date(2026, 7, 11, 10, 1), long: 0)).updatedAt)
+        await scheduler.receiveQuotaSnapshot(snapshot(100, at: date(2026, 7, 11, 10, 2), long: 0), now: (snapshot(100, at: date(2026, 7, 11, 10, 2), long: 0)).updatedAt)
+        scheduler.setEnabled(false)
+        scheduler.setEnabled(true)
+        await scheduler.receiveQuotaSnapshot(snapshot(40, at: date(2026, 7, 11, 10, 3)), now: (snapshot(40, at: date(2026, 7, 11, 10, 3))).updatedAt)
+        await scheduler.receiveQuotaSnapshot(snapshot(70, at: date(2026, 7, 11, 10, 4), reset: date(2026, 7, 11, 16, 30)), now: date(2026, 7, 11, 10, 4))
+        XCTAssertEqual(trigger.callCount, 0)
+    }
+
+    func testNaturalRecoveryAndRetryAreDeduplicatedWithScheduledWindow() async {
+        let reset = date(2026, 7, 11, 15, 30)
+        let trigger = SequencedTrigger(errors: [CodexCLIRefreshTriggerError.usageLimit(resetAt: reset, message: "limit"), nil])
+        let scheduler = recoveryScheduler(trigger)
+        scheduler.setEnabled(true, at: date(2026, 7, 11, 10, 0))
+        await scheduler.receiveQuotaSnapshot(snapshot(0, at: date(2026, 7, 11, 10, 1)), now: (snapshot(0, at: date(2026, 7, 11, 10, 1))).updatedAt)
+        await scheduler.handleScheduledTimer(for: date(2026, 7, 11, 10, 30), now: date(2026, 7, 11, 10, 30))
+        await scheduler.handleQuotaResetRetryTimer(now: reset)
+        await scheduler.handleScheduledTimer(for: reset, now: reset)
+        await scheduler.receiveQuotaSnapshot(snapshot(100, at: reset.addingTimeInterval(1), reset: reset.addingTimeInterval(18000)), now: reset.addingTimeInterval(1))
+        XCTAssertEqual(trigger.callCount, 2)
+        XCTAssertNil(scheduler.state.pendingQuotaResetRetryTime)
+    }
+
+    func testEarlyRecoveryReplacesPendingRetryAndReenableAccountSwitchBaseline() async {
+        let reset = date(2026, 7, 11, 15, 30)
+        let trigger = SequencedTrigger(errors: [CodexCLIRefreshTriggerError.usageLimit(resetAt: reset, message: "limit"), nil])
+        let scheduler = recoveryScheduler(trigger)
+        scheduler.setEnabled(true, at: date(2026, 7, 11, 10, 0))
+        await scheduler.receiveQuotaSnapshot(snapshot(0, at: date(2026, 7, 11, 10, 1)), now: (snapshot(0, at: date(2026, 7, 11, 10, 1))).updatedAt)
+        await scheduler.handleScheduledTimer(for: date(2026, 7, 11, 10, 30), now: date(2026, 7, 11, 10, 30))
+        await scheduler.receiveQuotaSnapshot(snapshot(100, at: date(2026, 7, 11, 10, 40)), now: date(2026, 7, 11, 10, 40))
+        await scheduler.handleQuotaResetRetryTimer(now: reset)
+        XCTAssertEqual(trigger.callCount, 2)
+        XCTAssertNil(scheduler.state.pendingQuotaResetRetryTime)
+        await scheduler.receiveQuotaSnapshot(snapshot(0, at: date(2026, 7, 11, 11, 0)), now: (snapshot(0, at: date(2026, 7, 11, 11, 0))).updatedAt)
+        await scheduler.receiveQuotaSnapshot(snapshot(100, at: date(2026, 7, 11, 11, 1), account: "other"), now: (snapshot(100, at: date(2026, 7, 11, 11, 1), account: "other")).updatedAt)
+        scheduler.setEnabled(false)
+        await scheduler.receiveQuotaSnapshot(snapshot(0, at: date(2026, 7, 11, 11, 2)), now: (snapshot(0, at: date(2026, 7, 11, 11, 2))).updatedAt)
+        scheduler.setEnabled(true)
+        await scheduler.receiveQuotaSnapshot(snapshot(100, at: date(2026, 7, 11, 11, 3)), now: (snapshot(100, at: date(2026, 7, 11, 11, 3))).updatedAt)
+        let restarted = recoveryScheduler(trigger)
+        await restarted.receiveQuotaSnapshot(snapshot(100, at: date(2026, 7, 11, 11, 4)), now: date(2026, 7, 11, 11, 4))
+        XCTAssertEqual(trigger.callCount, 2)
+    }
+
+    func testRecoveryObservedDuringOlderRequestIsDrainedAfterCompletion() async {
+        let trigger = SuspendedTrigger()
+        let scheduler = recoveryScheduler(trigger)
+        let start = date(2026, 7, 11, 10, 30)
+        scheduler.setEnabled(true, at: start.addingTimeInterval(-120))
+        await scheduler.receiveQuotaSnapshot(snapshot(0, at: start.addingTimeInterval(-60)), now: start.addingTimeInterval(-60))
+        let scheduled = Task { await scheduler.handleScheduledTimer(for: start, now: start) }
+        while trigger.callCount == 0 { await Task.yield() }
+        await scheduler.receiveQuotaSnapshot(snapshot(100, at: start.addingTimeInterval(60)), now: start.addingTimeInterval(60))
+        XCTAssertEqual(trigger.callCount, 1)
+        trigger.finish()
+        await scheduled.value
+        XCTAssertEqual(trigger.callCount, 2)
+        XCTAssertEqual(scheduler.state.lastTriggerReason, .quotaRecovery)
+    }
+
+    func testDisableDuringRequestDropsQueuedRecoveryAndDoesNotRearm() async {
+        let trigger = SuspendedTrigger()
+        let scheduler = recoveryScheduler(trigger)
+        let start = date(2026, 7, 11, 10, 30)
+        scheduler.setEnabled(true, at: start)
+        await scheduler.receiveQuotaSnapshot(snapshot(0, at: start.addingTimeInterval(-60)), now: (snapshot(0, at: start.addingTimeInterval(-60))).updatedAt)
+        let scheduled = Task { await scheduler.handleScheduledTimer(for: start, now: start) }
+        while trigger.callCount == 0 { await Task.yield() }
+        await scheduler.receiveQuotaSnapshot(snapshot(100, at: start.addingTimeInterval(60)), now: start.addingTimeInterval(60))
+        scheduler.setEnabled(false)
+        trigger.finish()
+        await scheduled.value
+        XCTAssertEqual(trigger.callCount, 1)
+        XCTAssertNil(scheduler.state.nextTriggerTime)
+        XCTAssertNil(scheduler.state.pendingQuotaResetRetryTime)
+    }
+
+    func testBlockedRecoveryRunsOnceWhenPermissionBecomesAvailable() async {
+        let trigger = RecordingTrigger()
+        let scheduler = recoveryScheduler(trigger)
+        let start = date(2026, 7, 11, 10, 0)
+        scheduler.setEnabled(true, at: start)
+        await scheduler.receiveQuotaSnapshot(snapshot(0, at: start), now: start)
+        await scheduler.receiveQuotaSnapshot(snapshot(100, at: start.addingTimeInterval(60), allowed: false), now: start.addingTimeInterval(60))
+        XCTAssertEqual(trigger.callCount, 0)
+        await scheduler.receiveQuotaSnapshot(snapshot(100, at: start.addingTimeInterval(120), allowed: true), now: start.addingTimeInterval(120))
+        await scheduler.receiveQuotaSnapshot(snapshot(100, at: start.addingTimeInterval(180), allowed: true), now: start.addingTimeInterval(180))
+        XCTAssertEqual(trigger.callCount, 1)
+    }
+
+    func testAccountSwitchCancelsOldAccountRetry() async {
+        let start = date(2026, 7, 11, 10, 30)
+        let reset = start.addingTimeInterval(18000)
+        let trigger = SequencedTrigger(errors: [CodexCLIRefreshTriggerError.usageLimit(resetAt: reset, message: "limit"), nil])
+        let scheduler = recoveryScheduler(trigger)
+        scheduler.setEnabled(true, at: start)
+        await scheduler.receiveQuotaSnapshot(snapshot(0, at: start), now: start)
+        await scheduler.handleScheduledTimer(for: start, now: start)
+        await scheduler.receiveQuotaSnapshot(snapshot(80, at: start.addingTimeInterval(60), account: "other"), now: start.addingTimeInterval(60))
+        await scheduler.handleQuotaResetRetryTimer(now: reset)
+        XCTAssertEqual(trigger.callCount, 1)
+        XCTAssertNil(scheduler.state.pendingQuotaResetRetryTime)
+    }
+
+    func testOldAccountRequestCompletionDrainsNewAccountRecovery() async {
+        let start = date(2026, 7, 11, 10, 30)
+        let trigger = SuspendedTrigger()
+        let scheduler = recoveryScheduler(trigger)
+        scheduler.setEnabled(true, at: start)
+        await scheduler.receiveQuotaSnapshot(snapshot(0, at: start), now: start)
+        let scheduled = Task { await scheduler.handleScheduledTimer(for: start, now: start) }
+        while trigger.callCount == 0 { await Task.yield() }
+        await scheduler.receiveQuotaSnapshot(snapshot(0, at: start.addingTimeInterval(60), account: "other"), now: start.addingTimeInterval(60))
+        XCTAssertEqual(scheduler.state.lastFailureKind, .interrupted)
+        await scheduler.receiveQuotaSnapshot(snapshot(100, at: start.addingTimeInterval(120), account: "other"), now: start.addingTimeInterval(120))
+        trigger.finish()
+        await scheduled.value
+        XCTAssertEqual(trigger.callCount, 2)
+        XCTAssertEqual(scheduler.state.lastTriggerReason, .quotaRecovery)
+        XCTAssertEqual(scheduler.state.lastTriggerResult, .succeeded)
+    }
+
+    func testStopDropsQueuedRecoveryAndRejectsLateSnapshots() async {
+        let start = date(2026, 7, 11, 10, 30)
+        let trigger = SuspendedTrigger()
+        let scheduler = recoveryScheduler(trigger)
+        scheduler.setEnabled(true, at: start)
+        await scheduler.receiveQuotaSnapshot(snapshot(0, at: start), now: start)
+        let scheduled = Task { await scheduler.handleScheduledTimer(for: start, now: start) }
+        while trigger.callCount == 0 { await Task.yield() }
+        await scheduler.receiveQuotaSnapshot(snapshot(100, at: start.addingTimeInterval(60)), now: start.addingTimeInterval(60))
+        scheduler.stop()
+        XCTAssertEqual(scheduler.state.lastFailureKind, .interrupted)
+        trigger.finish()
+        await scheduled.value
+        await scheduler.receiveQuotaSnapshot(snapshot(0, at: start.addingTimeInterval(120)), now: start.addingTimeInterval(120))
+        await scheduler.receiveQuotaSnapshot(snapshot(100, at: start.addingTimeInterval(180)), now: start.addingTimeInterval(180))
+        await scheduler.handleScheduledTimer(for: start.addingTimeInterval(18000), now: start.addingTimeInterval(18000))
+        XCTAssertEqual(trigger.callCount, 1)
+        XCTAssertEqual(scheduler.state.lastTriggerResult, .failed)
+    }
+
+    func testStaleFutureAndOutOfOrderSnapshotsCannotTriggerRecovery() async {
+        let start = date(2026, 7, 11, 10, 30)
+        let trigger = RecordingTrigger()
+        let scheduler = recoveryScheduler(trigger)
+        scheduler.setEnabled(true, at: start)
+        await scheduler.receiveQuotaSnapshot(snapshot(0, at: start), now: start)
+        await scheduler.receiveQuotaSnapshot(snapshot(100, at: start.addingTimeInterval(60)), now: start.addingTimeInterval(241))
+        await scheduler.receiveQuotaSnapshot(snapshot(100, at: start.addingTimeInterval(120)), now: start.addingTimeInterval(60))
+        await scheduler.receiveQuotaSnapshot(snapshot(100, at: start.addingTimeInterval(-60)), now: start)
+        await scheduler.receiveQuotaSnapshot(snapshot(0, at: start.addingTimeInterval(180)), now: start.addingTimeInterval(180))
+        XCTAssertEqual(trigger.callCount, 0)
+    }
+
     private func date(_ year: Int, _ month: Int, _ day: Int, _ hour: Int, _ minute: Int) -> Date {
         calendar.date(from: DateComponents(
             calendar: calendar,
@@ -334,4 +520,22 @@ private final class RecordingLogger: AutoRefreshLogging {
 
 private enum TestError: Error {
     case failed
+}
+
+@MainActor
+private final class SuspendedTrigger: CodexRefreshTriggering {
+    private(set) var callCount = 0
+    private var continuation: CheckedContinuation<Void, Never>?
+
+    func trigger() async throws {
+        callCount += 1
+        if callCount == 1 {
+            await withCheckedContinuation { continuation = $0 }
+        }
+    }
+
+    func finish() {
+        continuation?.resume()
+        continuation = nil
+    }
 }

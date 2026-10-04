@@ -17,12 +17,56 @@ struct UsageWindow: Codable, Equatable {
     var clampedPercent: Int { min(100, max(0, remainingPercent)) }
 }
 
+struct RateLimitResetCredit: Codable, Equatable {
+    let id: String
+    let resetType: String
+    let status: String
+    /// A nil date means this credit does not expire.
+    let expiresAt: Date?
+}
+
+struct RateLimitResetCreditsSummary: Codable, Equatable {
+    /// The backend's authoritative number of credits available for use.
+    let availableCount: Int
+    /// Nil means the backend supplied only the count; an array may be capped.
+    let credits: [RateLimitResetCredit]?
+
+    var earliestKnownExpiration: Date? {
+        credits?
+            .filter { $0.status == "available" }
+            .compactMap(\.expiresAt)
+            .min()
+    }
+
+    var hasCompleteDetails: Bool {
+        guard let credits else { return false }
+        return credits.filter { $0.status == "available" }.count >= availableCount
+    }
+}
+
 struct CodexUsageSnapshot: Codable, Equatable {
     let shortTerm: UsageWindow
     /// Codex plans that expose only one rate-limit window omit the secondary window.
     let longTerm: UsageWindow?
     let updatedAt: Date
     var sourceDescription: String
+    let rateLimitResetCredits: RateLimitResetCreditsSummary?
+    /// Identifies the account when the data source supplies it.
+    let accountID: String?
+    /// Explicit backend permission for included usage; nil means unavailable.
+    let ordinaryUsageAllowed: Bool?
+
+    init(shortTerm: UsageWindow, longTerm: UsageWindow?, updatedAt: Date,
+         sourceDescription: String, rateLimitResetCredits: RateLimitResetCreditsSummary? = nil,
+         accountID: String? = nil, ordinaryUsageAllowed: Bool? = nil) {
+        self.shortTerm = shortTerm
+        self.longTerm = longTerm
+        self.updatedAt = updatedAt
+        self.sourceDescription = sourceDescription
+        self.rateLimitResetCredits = rateLimitResetCredits
+        self.accountID = accountID
+        self.ordinaryUsageAllowed = ordinaryUsageAllowed
+    }
 
     var localizedSourceDescription: String {
         switch sourceDescription {

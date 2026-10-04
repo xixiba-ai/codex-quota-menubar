@@ -24,6 +24,7 @@ protocol ResetForecastFetching: Sendable {
 }
 
 final class ResetForecastService: ResetForecastFetching, @unchecked Sendable {
+    static let websiteURL = URL(string: "https://www.willcodexquotareset.com/")!
     static let endpoint = URL(string: "https://www.willcodexquotareset.com/api/forecast")!
 
     private struct Envelope: Decodable {
