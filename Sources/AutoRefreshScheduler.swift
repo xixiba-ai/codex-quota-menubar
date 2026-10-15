@@ -5,6 +5,9 @@ import os
 
 struct AutoRefreshState: Codable, Equatable {
     var autoRefreshEnabled: Bool
+    /// Runtime mode from the latest fresh quota read; never restore an account mode from defaults.
+    var hasOnlyLongTermWindow = false
+    var longTermWindowDurationMinutes: Int? = nil
     var lastTriggerTime: Date?
     var nextTriggerTime: Date?
     var lastTriggerResult: AutoRefreshTriggerResult?
@@ -284,6 +287,7 @@ final class AutoRefreshScheduler: ObservableObject {
     private var isStarted = false
     private var isStopped = false
     private var isTriggering = false
+    private var modeSnapshot: CodexUsageSnapshot?
     private var quotaBaseline: CodexUsageSnapshot?
     private var pendingRecoveryTime: Date?
     private var pendingRecoveryObservedAt: Date?
@@ -327,6 +331,7 @@ final class AutoRefreshScheduler: ObservableObject {
         markInterruptedRequest()
         lifecycleGeneration += 1
         quotaBaseline = nil
+        modeSnapshot = nil
         pendingRecoveryTime = nil
         pendingRecoveryObservedAt = nil
         scheduledTimer?.cancel()
@@ -353,7 +358,7 @@ final class AutoRefreshScheduler: ObservableObject {
         }
         mutateState {
             $0.autoRefreshEnabled = enabled
-            $0.nextTriggerTime = enabled
+            $0.nextTriggerTime = enabled && !$0.hasOnlyLongTermWindow
                 ? AutoRefreshSchedule.nextWindow(after: date, triggerMinutes: $0.triggerMinutes, calendar: calendar).date
                 : nil
             if !enabled { $0.pendingQuotaResetRetryTime = nil }
@@ -382,7 +387,7 @@ final class AutoRefreshScheduler: ObservableObject {
     /// Called on launch and wake. Only the newest schedule window can be compensated.
     func checkForMissedTrigger(at date: Date = .now, reason: AutoRefreshTriggerReason) async {
         logger.record(checkTime: date, reason: nil, result: nil, error: nil)
-        guard state.autoRefreshEnabled, !isStopped else { return }
+        guard state.autoRefreshEnabled, !state.hasOnlyLongTermWindow, !isStopped else { return }
 
         let window = AutoRefreshSchedule.latestWindow(onOrBefore: date, triggerMinutes: state.triggerMinutes, calendar: calendar)
         guard state.lastHandledWindowID != window.id else {
@@ -396,7 +401,7 @@ final class AutoRefreshScheduler: ObservableObject {
 
     /// The timer supplies the intended date so a delayed fire after sleep is classified correctly.
     func handleScheduledTimer(for scheduledDate: Date, now: Date = .now) async {
-        guard state.autoRefreshEnabled, !isStopped else { return }
+        guard state.autoRefreshEnabled, !state.hasOnlyLongTermWindow, !isStopped else { return }
         let latestWindow = AutoRefreshSchedule.latestWindow(onOrBefore: now, triggerMinutes: state.triggerMinutes, calendar: calendar)
         guard state.lastHandledWindowID != latestWindow.id else {
             armNextTimer(after: now)
@@ -436,8 +441,19 @@ final class AutoRefreshScheduler: ObservableObject {
 
     /// Accept only newly read, successful quota snapshots from the data source.
     func receiveQuotaSnapshot(_ snapshot: CodexUsageSnapshot, now: Date = .now) async {
-        guard state.autoRefreshEnabled, !isStopped, now.timeIntervalSince(snapshot.updatedAt) >= 0,
+        guard !isStopped, now.timeIntervalSince(snapshot.updatedAt) >= 0,
               now.timeIntervalSince(snapshot.updatedAt) <= 180 else { return }
+        guard modeSnapshot.map({ snapshot.updatedAt >= $0.updatedAt }) ?? true else { return }
+        modeSnapshot = snapshot
+        if state.hasOnlyLongTermWindow != snapshot.hasOnlyLongTermWindow
+            || state.longTermWindowDurationMinutes != snapshot.shortTerm.windowDurationMinutes {
+            mutateState {
+                $0.hasOnlyLongTermWindow = snapshot.hasOnlyLongTermWindow
+                $0.longTermWindowDurationMinutes = snapshot.shortTerm.windowDurationMinutes
+            }
+            armNextTimer(after: now)
+        }
+        guard state.autoRefreshEnabled else { return }
         guard let previous = quotaBaseline else {
             quotaBaseline = snapshot
             mutateState { $0.lastSuccessfulTriggerTime = nil }
@@ -583,6 +599,12 @@ final class AutoRefreshScheduler: ObservableObject {
 
     private func armNextTimer(after date: Date) {
         guard state.autoRefreshEnabled, !isStopped else { return }
+        scheduledTimer?.cancel()
+        scheduledTimer = nil
+        guard !state.hasOnlyLongTermWindow else {
+            mutateState { $0.nextTriggerTime = $0.pendingQuotaResetRetryTime }
+            return
+        }
         let next = AutoRefreshSchedule.nextWindow(after: date, triggerMinutes: state.triggerMinutes, calendar: calendar)
         let nextVisibleTrigger = state.pendingQuotaResetRetryTime.map { min($0, next.date) } ?? next.date
         mutateState { $0.nextTriggerTime = nextVisibleTrigger }

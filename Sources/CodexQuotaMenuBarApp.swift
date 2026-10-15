@@ -99,8 +99,14 @@ final class MenuBarAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate,
         freshnessTimer = Timer.publish(every: 30, on: .main, in: .common).autoconnect().sink { [weak self] _ in
             self?.renderStatusItem()
         }
-        Task { await store.start() }
-        autoRefreshScheduler.start()
+        Task {
+            await store.start()
+            // Establish the quota mode before launch compensation can run.
+            if case .available(let snapshot) = store.state {
+                await autoRefreshScheduler.receiveQuotaSnapshot(snapshot)
+            }
+            autoRefreshScheduler.start()
+        }
         if !UserDefaults.standard.bool(forKey: "hasShownGettingStarted") {
             showHelp()
         }
@@ -255,7 +261,13 @@ final class MenuBarAppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate,
         let statusText = state.autoRefreshEnabled ? L10n.tr("开启") : L10n.tr("关闭")
         autoRefreshToggleItem.title = state.autoRefreshEnabled ? L10n.tr("关闭自动刷新额度") : L10n.tr("开启自动刷新额度")
         autoRefreshToggleItem.state = .off
-        autoRefreshTimesItem.title = L10n.tr("触发时间：\(AutoRefreshSchedule.formattedTimeList(state.triggerMinutes))")
+        autoRefreshScheduleItem.isHidden = state.hasOnlyLongTermWindow
+        nextAutoRefreshItem.isHidden = state.hasOnlyLongTermWindow
+        autoRefreshTimesItem.title = state.hasOnlyLongTermWindow
+            ? (state.longTermWindowDurationMinutes == 10080
+                ? L10n.tr("仅周额度：重置后自动使用，无需设置每日时间")
+                : L10n.tr("仅长期额度：重置后自动使用，无需设置每日时间"))
+            : L10n.tr("触发时间：\(AutoRefreshSchedule.formattedTimeList(state.triggerMinutes))")
         autoRefreshStatusItem.title = L10n.tr("当前状态：\(statusText)")
         lastAutoRefreshItem.title = L10n.tr("最近一次触发：\(formatAutoRefreshDate(state.lastTriggerTime))")
         let result = state.lastTriggerResult?.localizedText ?? L10n.tr("尚未执行")

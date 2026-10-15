@@ -216,3 +216,6 @@
 "若会话仍被其他客户端占用，请先关闭该会话再删除。" = "If another client is using this session, close it there before deleting it.";
 "重置后随本机额度推送或下一次 60 秒读取检测恢复；重复读取不会重复使用。首次读取和切换账号只建立基线。" = "Recovery is detected through local quota updates or the next 60-second read. Repeated reads do not send duplicate requests. The first read and account changes only establish a baseline.";
 "额度恢复后使用" = "Use after quota recovery";
+
+"仅长期额度：重置后自动使用，无需设置每日时间" = "Long-term quota only: use automatically after reset; no daily schedule needed";
+"仅周额度：重置后自动使用，无需设置每日时间" = "Weekly quota only: use automatically after reset; no daily schedule needed";

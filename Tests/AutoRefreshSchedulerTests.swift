@@ -295,6 +295,44 @@ final class AutoRefreshSchedulerTests: XCTestCase {
             ordinaryUsageAllowed: allowed)
     }
 
+    func testWeeklyModeIsDetectedWhileDisabledAndPreservesDailyPreferencesAcrossAccounts() async {
+        let trigger = RecordingTrigger()
+        let scheduler = recoveryScheduler(trigger)
+        let now = date(2026, 7, 11, 10, 0)
+        XCTAssertTrue(scheduler.setTriggerMinutes([123, 456], at: now))
+        await scheduler.receiveQuotaSnapshot(weeklySnapshot(100, at: now, reset: now.addingTimeInterval(604800)), now: now)
+        XCTAssertTrue(scheduler.state.hasOnlyLongTermWindow)
+        scheduler.setEnabled(true, at: now)
+        XCTAssertNil(scheduler.state.nextTriggerTime)
+        await scheduler.checkForMissedTrigger(at: now, reason: .launchCompensation)
+        await scheduler.checkForMissedTrigger(at: now, reason: .wakeCompensation)
+        await scheduler.checkForMissedTrigger(at: now, reason: .clockChangeCompensation)
+        await scheduler.handleScheduledTimer(for: now, now: now)
+        XCTAssertEqual(trigger.callCount, 0)
+        XCTAssertEqual(scheduler.state.missedTriggerCount, 0)
+        let dual = snapshot(50, at: now.addingTimeInterval(60), long: 100, account: "dual")
+        await scheduler.receiveQuotaSnapshot(dual, now: dual.updatedAt)
+        XCTAssertFalse(scheduler.state.hasOnlyLongTermWindow)
+        XCTAssertEqual(scheduler.state.triggerMinutes, [123, 456])
+        XCTAssertNotNil(scheduler.state.nextTriggerTime)
+        await scheduler.handleScheduledTimer(for: dual.updatedAt, now: dual.updatedAt)
+        XCTAssertEqual(trigger.callCount, 1)
+    }
+
+    func testWeeklyModeIgnoresStaleFutureAndOutOfOrderSnapshots() async {
+        let scheduler = recoveryScheduler(RecordingTrigger())
+        let now = date(2026, 7, 11, 10, 0)
+        let weekly = weeklySnapshot(100, at: now, reset: now.addingTimeInterval(604800))
+        await scheduler.receiveQuotaSnapshot(weekly, now: now.addingTimeInterval(181))
+        XCTAssertFalse(scheduler.state.hasOnlyLongTermWindow)
+        await scheduler.receiveQuotaSnapshot(weekly, now: now.addingTimeInterval(-1))
+        XCTAssertFalse(scheduler.state.hasOnlyLongTermWindow)
+        await scheduler.receiveQuotaSnapshot(weekly, now: now)
+        await scheduler.receiveQuotaSnapshot(snapshot(100, at: now.addingTimeInterval(-60)), now: now)
+        XCTAssertTrue(scheduler.state.hasOnlyLongTermWindow)
+        XCTAssertFalse(stateStore.load().hasOnlyLongTermWindow, "Account mode must not be restored from defaults")
+    }
+
     func testWeeklyOnlyResetTriggersWithoutPercentageIncreaseAndDoesNotRepeat() async {
         let trigger = RecordingTrigger()
         let scheduler = recoveryScheduler(trigger)
