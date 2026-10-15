@@ -468,7 +468,12 @@ final class AutoRefreshScheduler: ObservableObject {
                 (old.resetsAt <= snapshot.updatedAt && new.resetsAt.timeIntervalSince(old.resetsAt) >= 60))
         }
         func boundary(_ old: UsageWindow, _ new: UsageWindow) -> Date? {
-            guard recovered(old, new) else { return nil }
+            // Weekly-only plans can remain at 100% across a reset. Crossing their
+            // reported reset time is sufficient even when the percentage is unchanged.
+            let crossedLongTermReset = previous.hasOnlyLongTermWindow && snapshot.hasOnlyLongTermWindow
+                && old.windowDurationMinutes == new.windowDurationMinutes
+                && old.resetsAt > previous.updatedAt && old.resetsAt <= snapshot.updatedAt
+            guard recovered(old, new) || crossedLongTermReset else { return nil }
             var boundaries: [Date] = []
             if old.resetsAt > previous.updatedAt && old.resetsAt <= snapshot.updatedAt {
                 boundaries.append(old.resetsAt)

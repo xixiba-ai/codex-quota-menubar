@@ -288,6 +288,81 @@ final class AutoRefreshSchedulerTests: XCTestCase {
             updatedAt: time, sourceDescription: "test", accountID: account, ordinaryUsageAllowed: allowed)
     }
 
+    private func weeklySnapshot(_ percent: Int, at time: Date, reset: Date, allowed: Bool? = nil) -> CodexUsageSnapshot {
+        CodexUsageSnapshot(
+            shortTerm: UsageWindow(remainingPercent: percent, resetsAt: reset, windowDurationMinutes: 10080),
+            longTerm: nil, updatedAt: time, sourceDescription: "test", accountID: "account",
+            ordinaryUsageAllowed: allowed)
+    }
+
+    func testWeeklyOnlyResetTriggersWithoutPercentageIncreaseAndDoesNotRepeat() async {
+        let trigger = RecordingTrigger()
+        let scheduler = recoveryScheduler(trigger)
+        let reset = date(2026, 7, 11, 12, 0)
+        scheduler.setEnabled(true, at: reset.addingTimeInterval(-60))
+        for offset: TimeInterval in [-60, -1, 0, 60, 120] {
+            let current = weeklySnapshot(100, at: reset.addingTimeInterval(offset), reset: reset)
+            await scheduler.receiveQuotaSnapshot(current, now: current.updatedAt)
+            XCTAssertEqual(trigger.callCount, offset < 0 ? 0 : 1)
+        }
+        XCTAssertEqual(scheduler.state.lastTriggerReason, .quotaRecovery)
+        let advanced = weeklySnapshot(100, at: reset.addingTimeInterval(180), reset: reset.addingTimeInterval(604800))
+        await scheduler.receiveQuotaSnapshot(advanced, now: advanced.updatedAt)
+        XCTAssertEqual(trigger.callCount, 1)
+    }
+
+    func testWeeklyOnlyResetWaitsForUsableQuotaAndPermission() async {
+        let trigger = RecordingTrigger()
+        let scheduler = recoveryScheduler(trigger)
+        let reset = date(2026, 7, 11, 12, 0)
+        scheduler.setEnabled(true, at: reset.addingTimeInterval(-60))
+        for offset: TimeInterval in [-60, 0, 60] {
+            let current = weeklySnapshot(offset <= 0 ? 0 : 100,
+                at: reset.addingTimeInterval(offset), reset: reset, allowed: false)
+            await scheduler.receiveQuotaSnapshot(current, now: current.updatedAt)
+        }
+        XCTAssertEqual(trigger.callCount, 0)
+        let usable = weeklySnapshot(100, at: reset.addingTimeInterval(120), reset: reset, allowed: true)
+        await scheduler.receiveQuotaSnapshot(usable, now: usable.updatedAt)
+        XCTAssertEqual(trigger.callCount, 1)
+    }
+
+    func testSingleShortWindowDoesNotTriggerForUnchangedResetPercentage() async {
+        let trigger = RecordingTrigger()
+        let scheduler = recoveryScheduler(trigger)
+        let reset = date(2026, 7, 11, 12, 0)
+        scheduler.setEnabled(true, at: reset.addingTimeInterval(-60))
+        for offset: TimeInterval in [-60, 0, 60] {
+            let current = snapshot(100, at: reset.addingTimeInterval(offset), reset: reset)
+            await scheduler.receiveQuotaSnapshot(current, now: current.updatedAt)
+        }
+        XCTAssertEqual(trigger.callCount, 0)
+    }
+
+    func testWeeklyOnlyPastResetOnFirstReadDoesNotTrigger() async {
+        let trigger = RecordingTrigger()
+        let scheduler = recoveryScheduler(trigger)
+        let reset = date(2026, 7, 11, 12, 0)
+        scheduler.setEnabled(true, at: reset.addingTimeInterval(60))
+        for offset: TimeInterval in [60, 120, 180] {
+            let current = weeklySnapshot(100, at: reset.addingTimeInterval(offset), reset: reset)
+            await scheduler.receiveQuotaSnapshot(current, now: current.updatedAt)
+        }
+        XCTAssertEqual(trigger.callCount, 0)
+    }
+
+    func testDualWindowDoesNotTriggerForUnchangedResetPercentage() async {
+        let trigger = RecordingTrigger()
+        let scheduler = recoveryScheduler(trigger)
+        let reset = date(2026, 7, 11, 12, 0)
+        scheduler.setEnabled(true, at: reset.addingTimeInterval(-60))
+        for offset: TimeInterval in [-60, 0, 60] {
+            let current = snapshot(100, at: reset.addingTimeInterval(offset), reset: reset, long: 100)
+            await scheduler.receiveQuotaSnapshot(current, now: current.updatedAt)
+        }
+        XCTAssertEqual(trigger.callCount, 0)
+    }
+
     func testRecoveryBaselineDuplicateAndManualResetAfterScheduledSuccess() async {
         let trigger = RecordingTrigger()
         let scheduler = recoveryScheduler(trigger)
