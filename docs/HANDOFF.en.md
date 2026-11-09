@@ -21,11 +21,11 @@ The verification script runs unit tests. The app targets macOS 13+ and lives in 
 | `Sources/QuotaStore.swift` | Quota state, 60-second polling, and manual refresh. |
 | `Sources/UsageDataSource.swift` | Local Codex CLI app-server and optional HTTPS source. |
 | `Sources/QuotaViews.swift` | Quota display views. |
+| `Sources/TiboMonitor.swift` | Optional X page sign-in, visible DOM reads, persistent deduplication, and local notifications; regular checks every 60 minutes, no page load by default. |
 | `Sources/QuotaHelpView.swift` | First-launch help, feature explanations, FAQ, and connection check. |
 | `Sources/AutoRefreshScheduler.swift` | Scheduling, persistence, and wake/clock-change compensation. |
 | `Sources/CodexCLIRefreshTrigger.swift` | Scheduled one-shot Codex CLI requests. |
 | `Sources/CodexTerminalResumeLauncher.swift` | Explicit Terminal launch for a selected session, safe shell arguments, and private temporary scripts. |
-| `Sources/ResetForecast.swift` | Optional third-party forecast requests, validation, coalescing, and settings. |
 | `Tests/AutoRefreshSchedulerTests.swift` | Schedule, toggle, compensation, custom-time, and compatibility tests. |
 | `Resources/` | App and status icons. |
 | `distribution/releases/` | Versioned DMGs, installation guides, license, and checksums; excluded from Git. |
@@ -42,7 +42,6 @@ Menu bar UI
 ```
 
 - Quota is checked every 60 seconds, with additional local CLI update notifications.
-- Forecasts are off by default. When enabled, they follow active quota checks and scheduled CLI activity; passive quota notifications do not request forecasts.
 - Scheduled requests are independent of quota reads and run at the configured times.
 - Default trigger times are `05:30`, `10:30`, `15:30`, and `20:30`, adjustable through **修改触发时间…**.
 - The toggle, schedule, last result, and handled windows are stored under the `autoRefreshState` UserDefaults key.
@@ -50,11 +49,13 @@ Menu bar UI
 
 ## Help window
 
-The first-launch help state uses `hasShownGettingStarted` in UserDefaults. Closing the help window does not quit the app. The menu reopens the same window rather than creating duplicates. Help uses `QuotaStore` for connection status and manual refresh, without changing scheduled-activity or forecast settings.
+The first-launch help state uses `hasShownGettingStarted` in UserDefaults. Closing the help window does not quit the app. The menu reopens the same window rather than creating duplicates. Help uses `QuotaStore` for connection status and manual refresh, without changing scheduled-activity settings.
 
 Verify first-launch display, reopening after closing, subsequent launches without automatic help, all three help sections, connection errors, and opening the session browser. To repeat the first-launch check, quit the app and run `defaults delete com.example.CodexQuotaMenuBar hasShownGettingStarted`.
 
 ## Tests and builds
+
+Tibo tests must inject a `.nonPersistent()` `WKWebsiteDataStore` into `TiboMonitor`. A separate `UserDefaults` suite does not isolate WebKit. Never use the real default website store or clear a user’s sign-in data in tests.
 
 ```sh
 ./scripts/verify.sh

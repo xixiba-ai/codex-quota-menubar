@@ -16,7 +16,6 @@ protocol LiveUsageDataSource: UsageDataSource {
 /// Default development source. It keeps the app usable before an authorized data source is configured.
 final class MockUsageDataSource: UsageDataSource {
     func fetchUsage() async throws -> CodexUsageSnapshot {
-        NotificationCenter.default.post(name: .codexQuotaActiveRefresh, object: nil)
         return CodexUsageSnapshot.preview
     }
 }
@@ -34,7 +33,6 @@ final class RemoteJSONUsageDataSource: UsageDataSource {
     }
 
     func fetchUsage() async throws -> CodexUsageSnapshot {
-        NotificationCenter.default.post(name: .codexQuotaActiveRefresh, object: nil)
         var request = URLRequest(url: endpoint)
         request.timeoutInterval = 12
         request.setValue("application/json", forHTTPHeaderField: "Accept")
@@ -107,7 +105,6 @@ final class CodexAppServerUsageDataSource: LiveUsageDataSource {
     }
 
     func fetchUsage() async throws -> CodexUsageSnapshot {
-        NotificationCenter.default.post(name: .codexQuotaActiveRefresh, object: nil)
         try await startIfNeeded()
         return try await readRateLimits()
     }

@@ -85,7 +85,7 @@ struct QuotaHelpView: View {
                     Button(L10n.tr("开始使用"), action: dismiss)
                         .keyboardShortcut(.defaultAction)
                 }
-                Text(L10n.tr("随时从菜单栏的“新手引导与帮助…”回来。"))
+                Text(L10n.tr("随时从“设置 → 工具与帮助”重新打开帮助。"))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -105,19 +105,19 @@ struct QuotaHelpView: View {
             helpCard("2", title: L10n.tr("在屏幕顶部找到 Quota")) {
                 Text(L10n.tr("Quota 常驻 macOS 菜单栏，没有 Dock 图标。关闭这个帮助窗口后，它仍会继续显示额度。"))
                 HStack(spacing: 12) {
-                    Text("65% 02:30 · 55%")
+                    Text("55% " + TimeFormatter.resetDate(.now.addingTimeInterval(86400)))
                         .font(.system(.body, design: .monospaced).weight(.medium))
                         .padding(10)
                         .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 8))
-                    Text(L10n.tr("示例：短周期剩余 65%，\n2 小时 30 分后重置；长期剩余 55%。"))
+                    Text(L10n.tr("示例：长期额度剩余 55%，在显示的日期重置。"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                Text(L10n.tr("点击菜单栏数字，可查看完整重置时间。若套餐只提供长期额度，会显示剩余比例和重置日期。"))
+                Text(L10n.tr("菜单栏显示长期额度剩余比例与重置日期；点击可查看短周期等明细。若只有短周期额度，则显示其剩余比例和倒计时。"))
             }
             helpCard("3", title: L10n.tr("先用默认设置就够了")) {
-                Text(L10n.tr("额度每 60 秒自动读取一次，也会接收本机 CLI 的额度变动。需要最新数据时，点击菜单中的“立即刷新”。"))
-                Text(L10n.tr("“自动刷新额度”和“重置概率预测”默认关闭，可在了解功能后按需开启。"))
+                Text(L10n.tr("额度每 60 秒自动读取一次，也会接收本机 CLI 的额度变动。需要最新数据时，打开“设置 → 通用 → 立即刷新”。"))
+                Text(L10n.tr("“自动刷新额度”默认关闭，可在“设置 → 自动使用与通知”按需开启。长期重置颜色提醒默认开启，可在“通用”调整。"))
                     .foregroundStyle(.secondary)
             }
         }
@@ -160,12 +160,12 @@ struct QuotaHelpView: View {
                 Text(L10n.tr("开启“自动刷新额度”后，会在设定时间，以及检测到主动或官方重置后的额度恢复时，发起一次最小 Codex 请求，可能消耗少量额度。"))
                 Text(L10n.tr("重置后随本机额度推送或下一次 60 秒读取检测恢复；重复读取不会重复使用。首次读取和切换账号只建立基线。"))
                     .foregroundStyle(.secondary)
-                Text(L10n.tr("默认时间：\(AutoRefreshSchedule.formattedTimeList(AutoRefreshSchedule.defaultTriggerMinutes))（本机时间）。在“修改触发时间…”中调整；应用需保持运行，休眠后会补偿最近一个错过的时间点。"))
+                Text(L10n.tr("默认时间：\(AutoRefreshSchedule.formattedTimeList(AutoRefreshSchedule.defaultTriggerMinutes))（本机时间）。在“设置 → 自动使用与通知 → 修改触发时间…”中调整；应用需保持运行，休眠后会补偿最近一个错过的时间点。"))
                     .foregroundStyle(.secondary)
             }
-            helpCard("chart.line.uptrend.xyaxis", title: L10n.tr("重置概率预测")) {
-                Text(L10n.tr("开启后，会从 willcodexquotareset.com 获取未来 48 小时的第三方重置概率，随主动额度刷新更新。它是估算，不是官方重置承诺。"))
-                Text(L10n.tr("请求不携带 Codex 登录凭据。预测失败不会影响额度读取；显示“数据可能已过期”时，请留意更新时间。"))
+            helpCard("bell", title: L10n.tr("Codex Reset 动态通知")) {
+                Text(L10n.tr("在“设置 → 自动使用与通知”开启 Codex Reset 动态通知，读取 codex-reset.com 的公开时间线，无需 X 登录。首次成功读取仅建立基线，不通知历史事件。"))
+                Text(L10n.tr("这是第三方报告；全局重置与重置券动态分开显示，不代表你的账号已到账，也不会修改长期额度重置时间或自动使用规则。关闭后不请求数据，失败保留缓存并显示上次成功时间。"))
                     .foregroundStyle(.secondary)
             }
             helpCard("bubble.left.and.bubble.right", title: L10n.tr("定位与整理会话")) {
@@ -196,7 +196,7 @@ struct QuotaHelpView: View {
                 Text(L10n.tr("先关闭“最近 7 天”，选择“全部项目”并清空搜索条件，然后刷新会话列表。这里只显示本机可读取的 CLI 和 VS Code 会话，其他设备或未保存在本机的会话不会出现。"))
             }
             question(L10n.tr("关掉窗口后，怎么重新打开？")) {
-                Text(L10n.tr("点击屏幕顶部菜单栏中的额度数字，选择“新手引导与帮助…”。首次启动时自动显示一次，以后可随时手动打开。退出 Quota 请使用菜单里的“退出”。"))
+                Text(L10n.tr("点击菜单栏额度数字，可直接选择“定位 Codex 会话…”。打开“设置… → 工具与帮助”可重新打开帮助或退出 Quota。也可按 ⌘, 打开设置。首次启动时帮助会自动显示一次。"))
             }
         }
     }

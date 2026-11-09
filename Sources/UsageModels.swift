@@ -83,6 +83,11 @@ struct CodexUsageSnapshot: Codable, Equatable {
         longTerm == nil && (shortTerm.windowDurationMinutes ?? 0) >= 24 * 60
     }
 
+    /// A weekly-only API primary is long-term; a five-hour primary never is.
+    var longTermResetWindow: UsageWindow? {
+        longTerm ?? (hasOnlyLongTermWindow ? shortTerm : nil)
+    }
+
     static let preview = CodexUsageSnapshot(
         shortTerm: UsageWindow(remainingPercent: 65, resetsAt: .now.addingTimeInterval(17 * 60 + 56), windowDurationMinutes: 300),
         longTerm: UsageWindow(remainingPercent: 55, resetsAt: Calendar.current.date(byAdding: .day, value: 3, to: .now)!, windowDurationMinutes: 10_080),

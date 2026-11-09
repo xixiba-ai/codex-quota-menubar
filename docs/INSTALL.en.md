@@ -1,4 +1,4 @@
-# Install the Codex Quota preview
+# Install Codex Quota 1.0.0
 
 **English** | [简体中文](INSTALL.md)
 
@@ -6,20 +6,20 @@
 
 Download `Codex-Quota-VERSION-universal.dmg` from [GitHub Releases](https://github.com/xixiba-ai/codex-quota-menubar/releases). The universal app includes Apple Silicon and Intel builds and targets macOS 13 or later.
 
-Install and sign in to Codex CLI on your Mac before using quota features. The installer does not include Codex CLI or any login credentials. This first public preview has not been tested on every supported macOS version and hardware configuration.
+Install and sign in to Codex CLI on your Mac before using quota features. The installer does not include Codex CLI or any login credentials. The app targets macOS 13+; Intel and every supported OS/hardware combination have not been runtime-tested.
 
-**Starting with v1.0.0-preview.2, the app supports English and Simplified Chinese.** It follows the system language by default, with English as the fallback. Use **Language → Follow System / 简体中文 / English** to switch immediately. Earlier preview installers have a Chinese-only interface.
+The app supports English and Simplified Chinese, following the system language by default with English as fallback. Use **Settings → General → Language → Follow System / 简体中文 / English** to switch immediately.
 
 ## Install
 
-1. If an older Codex Quota is running, choose **Quit / 退出** from its menu bar menu.
+1. If an older Codex Quota is running, choose **Settings → Tools & Help → Quit Codex Quota** (or **Quit / 退出** in older versions).
 2. Open the DMG and drag **Codex Quota.app** into the **Applications** folder beside it.
 3. Eject the disk image, then open Codex Quota from Applications.
 4. Look for the app in the menu bar at the top of your screen. It has no Dock icon. A help window appears on first launch.
 
 ## macOS prompts on first launch
 
-This preview **has no Apple Developer ID signature and has not been notarized by Apple**. Its ad-hoc signature provides local integrity checking, not developer identity verification. macOS may display a warning that the developer cannot be verified or that Apple cannot check the app for malicious software.
+Version 1.0.0 **has no Apple Developer ID signature and has not been notarized by Apple**. Its ad-hoc signature provides local integrity checking, not developer identity verification. macOS may display a warning that the developer cannot be verified or that Apple cannot check the app for malicious software.
 
 After confirming the download source and checking the file, if you decide to proceed, try opening the app once. Then open **System Settings → Privacy & Security**, find **Open Anyway** for this app, and follow the system prompts. Organization-managed Macs may not allow this exception.
 
@@ -40,9 +40,11 @@ Compare the result with the entry for the same DMG filename in `SHA256SUMS.txt`.
 ## Defaults and privacy
 
 - Quota is read through your locally authenticated Codex CLI. The CLI handles account authentication.
-- **自动刷新额度** (scheduled quota activity) and **重置概率预测** (reset forecast) are off by default. Scheduled activity sends real Codex requests and may use a small amount of quota. Forecasts contact willcodexquotareset.com, which receives ordinary network request information such as your IP address.
+- **自动刷新额度** (scheduled quota activity) is off by default. Scheduled activity sends real Codex requests and may use a small amount of quota.
 - The session browser displays local session titles, task previews, and project paths. Remove private details before sharing screenshots or feedback.
 - Session deletion is permanent. Read the confirmation prompt before proceeding.
+- Codex Reset notifications are optional and use a public third-party API without X sign-in. These reports do not confirm a grant to your account. The old monitoring switch migrates once; existing preferences remain local.
+- Long-term reset color reminders default to red below 24 hours and orange from 24 to below 72 hours; configure them in Settings → General.
 
 ## License and feedback
 
@@ -52,4 +54,4 @@ The project uses the **MIT License**. The full license is included at the root o
 
 ## Check for a newer version
 
-Choose **About & Updates… → Check for Updates** in the menu bar menu. If a newer release is available, open its release page, download the DMG, and replace the app in Applications after quitting it. Your existing language and scheduling preferences are retained. The app checks only when requested and does not install updates automatically.
+Choose **Settings → Tools & Help → About & Updates… → Check for Updates**. If a newer release is available, open its release page, download the DMG, and replace the app in Applications after quitting it. Your existing language and scheduling preferences are retained. The app checks only when requested and does not install updates automatically.

@@ -21,11 +21,11 @@ open "/private/tmp/CodexQuotaMenuBarDerivedData/Build/Products/Debug/Codex Quota
 | `Sources/QuotaStore.swift` | 额度刷新状态、60 秒轮询与手动刷新。 |
 | `Sources/UsageDataSource.swift` | 本机 Codex CLI app-server 与可选 HTTPS 数据源。 |
 | `Sources/QuotaViews.swift` | 菜单栏额度展示。 |
+| `Sources/TiboMonitor.swift` | 可选 X 网页登录、DOM 读取、持久去重与本机通知；常规检查间隔 60 分钟，默认不加载网页。 |
 | `Sources/QuotaHelpView.swift` | 首次启动引导、功能说明、常见问题与连接检查。 |
 | `Sources/AutoRefreshScheduler.swift` | 自动刷新排程、持久化、休眠/时钟变更补偿。 |
 | `Sources/CodexCLIRefreshTrigger.swift` | 计划到点时调用本机 Codex CLI。 |
 | `Sources/CodexTerminalResumeLauncher.swift` | 将选中会话交给终端续接、安全引用 shell 参数及管理私有临时脚本。 |
-| `Sources/ResetForecast.swift` | 可选第三方重置概率请求、校验、合并并发与独立持久化开关。 |
 | `Tests/AutoRefreshSchedulerTests.swift` | 排程、开关、补偿、自定义时间与旧配置兼容测试。 |
 | `Resources/` | App Icon 与状态栏图标资源。 |
 | `distribution/releases/` | 按版本保存的 DMG、安装说明、许可证和校验文件；不进入 Git。 |
@@ -52,11 +52,13 @@ open "/private/tmp/CodexQuotaMenuBarDerivedData/Build/Products/Debug/Codex Quota
 
 ### 帮助窗口
 
-首次启动显示“新手引导与帮助”，展示后通过 `UserDefaults` 的 `hasShownGettingStarted` 保存已展示状态。关闭窗口不退出应用；菜单入口可重新打开同一个窗口，不重复创建。帮助页复用 `QuotaStore` 显示连接状态和手动刷新，不修改自动刷新或预测开关。
+首次启动显示“新手引导与帮助”，展示后通过 `UserDefaults` 的 `hasShownGettingStarted` 保存已展示状态。关闭窗口不退出应用；菜单入口可重新打开同一个窗口，不重复创建。帮助页复用 `QuotaStore` 显示连接状态和手动刷新，不修改自动刷新开关。
 
 验证时检查首次显示、关闭后从菜单重开、再次启动不自动弹出，以及三个帮助主题、连接失败提示和打开会话列表。若需要重新验证首次启动，可退出应用后执行 `defaults delete com.example.CodexQuotaMenuBar hasShownGettingStarted`。
 
 ### 测试与构建
+
+Tibo 测试必须向 `TiboMonitor` 注入 `.nonPersistent()` 的 `WKWebsiteDataStore`；仅隔离 `UserDefaults` 不会隔离 WebKit。禁止在测试中使用真实默认网站数据仓库或清除用户登录数据。
 
 ```sh
 ./scripts/verify.sh
